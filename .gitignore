@@ -1,0 +1,14 @@
+.*
+!/.gitignore
+*.user
+*.VC.db
+*.filters
+*.opendb
+*.pro.user*
+!.travis.yml
+*.autosave
+unit-tests/po-out.txt
+msvc/erfindung.VC.db
+libecs-d.a
+libcommon-d.a
+

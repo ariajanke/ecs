@@ -207,19 +207,17 @@ struct ComponentTable<Head, Types...> : public ComponentTable<Types...> {
 
     template <typename T>
     const typename std::enable_if<std::is_same<Head, T>::value, T>::
-    type * get() const { return m.get(); }
+    type * get(TypeTag<Head>) const { return m.get(); }
 
     template <typename T>
     typename std::enable_if<std::is_same<Head, T>::value, T>::
-    type * get() { return m.get(); }
+    type * get(TypeTag<Head>) { return m.get(); }
 
     template <typename T>
     typename std::enable_if<std::is_same<Head, T>::value, T>::
-    type * add() { return m.add(); }
+    type * add(TypeTag<Head>) { return m.add(); }
 
-    void remove(TypeTag<Head>) {
-        m.remove();
-    }
+    void remove(TypeTag<Head>) { m.remove(); }
 
     TableEntryImpl<k_component_inlined, Head> m;
 };
@@ -257,7 +255,7 @@ public:
         if (get_ptr<Type>()) {
             throw RtError("ComponentTableHead::add(): component of this type is already present.");
         }
-        Type * rv = m_table.template add<Type>();
+        Type * rv = m_table.template add<Type>(TypeTag<Type>());
         if (k_index != k_no_inline_index) {
             m_inlined_present.set(k_index);
         }
@@ -285,10 +283,10 @@ public:
     type * get_ptr() const noexcept {
         static const constexpr int k_index = InlineIndex<Type>::k_index;
         if constexpr (k_index == k_no_inline_index) {
-            return m_table.template get<Type>();
+            return m_table.template get<Type>(TypeTag<Type>());
         }
         if (m_inlined_present.test(k_index)) {
-            return m_table.template get<Type>();
+            return m_table.template get<Type>(TypeTag<Type>());
         }
         return nullptr;
     }

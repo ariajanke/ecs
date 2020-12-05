@@ -6,6 +6,9 @@
 #include <memory>
 #include <random>
 #include <algorithm>
+#include <thread>
+#include <chrono>
+
 //#define MACRO_BUILD_WITH_SFML
 #ifdef MACRO_BUILD_WITH_SFML
 #include <SFML/System/Vector2.hpp>
@@ -390,12 +393,14 @@ void add_typicals(Entity e, double rad, double mass, double x, double y) {
 #endif
 
 void test2();
+void test3();
 
 int main() {
 
     test_f1();
     test_f2();
     test2();
+    test3();
 #   ifdef MACRO_BUILD_WITH_SFML
 
     using TestCount = ecs::detail::CountInlinedComponents<Velocity, Position, Displacement, Mass, Radius, Name, FrameCounter>;
@@ -476,6 +481,7 @@ int main() {
         win.clear();
         systems.render_to(win);
         win.display();
+        std::this_thread::sleep_for(std::chrono::microseconds(16667));
     }
 #   endif
     return 0;
@@ -798,6 +804,56 @@ void test2() {
         assert(caught_bad_ref);
         }
     }
+}
+
+namespace t3 {
+
+struct OtherComp {
+    void print_something(int i) {
+        *target_write = i;
+        std::cout << "printing " << i << std::endl;
+    }
+    int * target_write = nullptr;
+};
+
+struct CompToParent {
+    static constexpr const int k_signal = 10;
+    CompToParent() {}
+    CompToParent(const CompToParent &) = delete;
+    CompToParent(CompToParent &&) = delete;
+    ~CompToParent();
+
+    CompToParent & operator = (const CompToParent &) = delete;
+    CompToParent & operator = (CompToParent &&) = delete;
+
+    ecs::EntityRef ref_to_parent;
+};
+
+using EntityManager = ecs::EntityManager<CompToParent, OtherComp>;
+using Entity = EntityManager::EntityType;
+
+CompToParent::~CompToParent() {
+    if (Entity e { ref_to_parent }) {
+        if (auto * other_comp = e.ptr<OtherComp>()) {
+            other_comp->print_something(k_signal);
+        }
+    }
+}
+
+} // end of t3 namespace
+
+void test3() {
+    using namespace t3;
+    t3::EntityManager eman;
+    t3::Entity entity = eman.create_new_entity();
+    int target = CompToParent::k_signal - 10;
+    entity.add<OtherComp>().target_write = &target;
+    entity.add<CompToParent>().ref_to_parent = entity;
+    entity.request_deletion();
+
+    eman.process_deletion_requests();
+
+    assert(target == CompToParent::k_signal);
 }
 
 namespace ecs {

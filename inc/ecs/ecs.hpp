@@ -218,13 +218,13 @@ public:
     /// @tparam T type of component to get
     /// @throws if the requested component has not been added
     template <typename T>
-    [[deprecated]] T & component() { return m_table->template get<T>(); }
+    [[deprecated]] T & component() { return get<T>(); }
 
     /// @brief Gets a read only component by type.
     /// @tparam T type of component to get
     /// @throws if the requested component has not been added
     template <typename T>
-    [[deprecated]] const T & component() const { return m_table->template get<T>(); }
+    [[deprecated]] const T & component() const { return get<T>(); }
 
     /// @brief Gets a pointer to a writable component by type.
     /// @tparam T type of component to get
@@ -242,7 +242,7 @@ public:
     /// present, it is added.
     /// @tparam T type of component to get
     template <typename T>
-    [[deprecated]] T & ensure_component();
+    [[deprecated]] T & ensure_component() { return ptr<T>() ? get<T>() : add<T>(); }
 
     /// @brief Adds a new component by type.
     /// @tparam T type of component to get
@@ -265,13 +265,13 @@ public:
     /// @tparam T type of component to get
     /// @throws if the requested component has not been added
     template <typename T>
-    T & get() { return m_table->template get<T>(); }
+    T & get();
 
     /// @brief Gets a read only component by type.
     /// @tparam T type of component to get
     /// @throws if the requested component has not been added
     template <typename T>
-    const T & get() const { return m_table->template get<T>(); }
+    const T & get() const;
 
     /// @brief Gets a pointer to a writable component by type.
     /// @tparam T type of component to get
@@ -335,6 +335,9 @@ public:
     std::size_t hash() const noexcept;
 
 private:
+    static constexpr const auto k_comp_not_present_msg =
+        "Entity::get<T>: component of this type is not present.";
+
     using ComponentsTable = detail::ComponentTableHead<Types...>;
 
     /// @throws  If the component table associated with the reference is of a
@@ -463,6 +466,14 @@ public:
 
     /// @brief Responds to all deletion requests.
     ///
+    /// @note When deleting entities, their components are deleted in the
+    ///       order that they appear in the type list.
+    ///       For instance Entity<A, B, C>, will first delete component A,
+    ///       then B, and lastly C.
+    /// @note This entity can be accessed in these destructors.
+    /// @note The order in which individual entities are deleted, is left
+    ///       undefined.
+    ///
     /// This does not necessarily delete all references to deleted entities
     /// themselves should still maintain a valid state. All these entity
     /// references and entities however, will become "expired".
@@ -514,9 +525,11 @@ class EntityAtt {
 
     template <typename ... Types>
     static void expire_entity(Entity<Types...> & e) {
+        // destructors of components first with the entity yet to expire...
+        e.m_table->remove_all();
+
         e.m_table->requesting_deletion = true;
         e.m_table->expired = true;
-        e.m_table->remove_all();
     }
 
     template <typename ... Types>
@@ -630,9 +643,16 @@ Entity<Types ...> Entity<Types ...>::create_new_entity() const {
 
 template <typename ... Types>
 template <typename T>
-T & Entity<Types ...>::ensure_component() {
+T & Entity<Types ...>::get() {
     if (auto * rv = ptr<T>()) return *rv;
-    return add<T>();
+    throw std::runtime_error(k_comp_not_present_msg);
+}
+
+template <typename ... Types>
+template <typename T>
+const T & Entity<Types ...>::get() const {
+    if (const auto * rv = ptr<T>()) return *rv;
+    throw std::runtime_error(k_comp_not_present_msg);
 }
 
 template <typename ... Types>

@@ -264,22 +264,6 @@ public:
 
     template <typename Type>
     const typename std::enable_if<HasType<Type>::k_value, Type>::
-    type & get() const {
-        if (const auto * rv = get_ptr<Type>())
-            { return *rv; }
-        throw RtError(k_get_not_present_msg);
-    }
-
-    template <typename Type>
-    typename std::enable_if<HasType<Type>::k_value, Type>::
-    type & get() {
-        if (auto * rv = get_ptr<Type>())
-            { return *rv; }
-        throw RtError(k_get_not_present_msg);
-    }
-
-    template <typename Type>
-    const typename std::enable_if<HasType<Type>::k_value, Type>::
     type * get_ptr() const noexcept {
         static const constexpr int k_index = InlineIndex<Type>::k_index;
         if constexpr (k_index == k_no_inline_index) {
@@ -311,9 +295,8 @@ public:
         (void)m_table.template remove(TypeTag<Type>());
     }
 
-    void remove_all() {
-        remove_all_(TypeList<Types...>());
-    }
+    void remove_all()
+        { remove_all_(TypeList<Types...>()); }
 
     static void id_func() {}
 
@@ -330,9 +313,6 @@ private:
             { remove<Head>(); }
         remove_all_(TypeList<OtherTypes...>());
     }
-
-    static constexpr const char * k_get_not_present_msg =
-        "ComponentTableHead::get(): component of this type is not present.";
 
     using BitSet = std::bitset<CountInlined::k_count>;
     ComponentTable<Types...> m_table;

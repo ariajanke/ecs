@@ -1,10 +1,36 @@
+/****************************************************************************
+
+    MIT License
+
+    Copyright (c) 2020 Aria Janke
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+*****************************************************************************/
+
 #pragma once
 
 #include <ecs/ecsdefs.hpp>
 
 #include <vector>
+#include <unordered_map>
 #include <algorithm>
-#include <functional>
 
 namespace ecs {
 
@@ -137,15 +163,14 @@ public:
     /// @note on semantic issue, entity being used like weak_ptr
     operator bool () const { return m_identity ? !m_identity->expired : false; }
 
-#   ifdef MACRO_ECS_DEADBEEF_SAFETY
-    bool safety_check() const
-        { return m_identity ? m_identity->safety != 0xDEADBEEF : true; }
-#   endif
 private:
     ReferenceCounter * m_identity = nullptr;
 };
 
 // ----------------------------------------------------------------------------
+
+template <typename ... Types>
+class System;
 
 /// @brief
 /// Entities are a means to point to/access a set of uniquely typed components.
@@ -160,7 +185,24 @@ class Entity final {
 public:
     friend class detail::EntityAtt;
     friend class EntityRef;
+
     using ManagerType = EntityManager<Types...>;
+    using SystemType  = System       <Types...>;
+
+    /// Component table's size in bytes
+    static constexpr const std::size_t k_component_table_size =
+        sizeof(detail::ComponentTable<Types...>);
+
+    /// The number of components inlined in the component table.
+    ///
+    /// Generally components three pointers or fewer in size are inlined into
+    /// the table itself, skipping an allocation call when adding the component.
+    /// Components can be inlined explicitly by inheriting from
+    /// ecs::InlinedComponent.
+    /// @note The bigger the component table, the more cache misses maybe
+    ///       incurred. (this is not tested)
+    static constexpr const std::size_t k_number_of_components_inlined =
+        detail::ComponentTableHead<Types...>::CountInlined::k_count;
 
     /// @brief Creates a null entity, which may not be associated with any
     ///        components.
@@ -213,48 +255,6 @@ public:
     /// @returns An entirely new entity, which will have its own set of
     ///          components.
     Entity create_new_entity() const;
-
-    /// @brief Gets a writable component by type.
-    /// @tparam T type of component to get
-    /// @throws if the requested component has not been added
-    template <typename T>
-    [[deprecated]] T & component() { return get<T>(); }
-
-    /// @brief Gets a read only component by type.
-    /// @tparam T type of component to get
-    /// @throws if the requested component has not been added
-    template <typename T>
-    [[deprecated]] const T & component() const { return get<T>(); }
-
-    /// @brief Gets a pointer to a writable component by type.
-    /// @tparam T type of component to get
-    /// @returns a nullptr if the component is not present
-    template <typename T>
-    [[deprecated]] T * component_ptr() { return m_table->template get_ptr<T>(); }
-
-    /// @brief Gets a pointer to a read only component by type.
-    /// @tparam T type of component to get
-    /// @returns a nullptr if the component is not present
-    template <typename T>
-    [[deprecated]] const T * component_ptr() const { return m_table->template get_ptr<T>(); }
-
-    /// @brief Gets a writable reference to a component by type, if it is not
-    /// present, it is added.
-    /// @tparam T type of component to get
-    template <typename T>
-    [[deprecated]] T & ensure_component() { return ptr<T>() ? get<T>() : add<T>(); }
-
-    /// @brief Adds a new component by type.
-    /// @tparam T type of component to get
-    /// @throws if component of type T is already present
-    template <typename T>
-    [[deprecated]] T & add_component() { return m_table->template add<T>(); }
-
-    /// @brief Removes a component by type.
-    /// @tparam T type of component to remove
-    /// @throws if the component is not present
-    template <typename T>
-    [[deprecated]] void remove_component() { m_table->template remove<T>(); }
 
     /// @tparam T type of component to get
     /// @returns true if the component is present
@@ -527,8 +527,6 @@ class EntityAtt {
     static void expire_entity(Entity<Types...> & e) {
         // destructors of components first with the entity yet to expire...
         e.m_table->remove_all();
-
-        e.m_table->requesting_deletion = true;
         e.m_table->expired = true;
     }
 
@@ -622,15 +620,14 @@ template <typename ... Types>
                       "new entity.");
     }
 
-    Entity e;
     try {
+        Entity e;
         detail::EntityAtt::set_counter(e, counter);
+        return e;
     } catch (...) {
         delete counter;
         throw;
     }
-
-    return e;
 }
 
 template <typename ... Types>
@@ -849,11 +846,7 @@ inline /* static */ ReferenceManager & ReferenceManager::null_instance() {
 
 // -----------------------------------------------------------------------------
 
-inline ReferenceCounter::~ReferenceCounter() {
-#   ifdef MACRO_ECS_DEADBEEF_SAFETY
-    safety = 0xDEADBEEF;
-#   endif
-}
+inline ReferenceCounter::~ReferenceCounter() {}
 
 inline void decrement(ReferenceCounter * counter) {
     if (!counter) return;

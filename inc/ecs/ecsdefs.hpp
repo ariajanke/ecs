@@ -1,11 +1,32 @@
-﻿#pragma once
+﻿/****************************************************************************
+
+    MIT License
+
+    Copyright (c) 2020 Aria Janke
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+*****************************************************************************/
+
+#pragma once
 
 #include <common/TypeList.hpp>
-
-#include <type_traits>
-#include <stdexcept>
-#include <unordered_map>
-#include <bitset>
 
 namespace ecs {
 
@@ -30,12 +51,10 @@ struct ReferenceCounter {
     bool expired = false;
     // needed for copying
     ReferenceManager * reference_manager = nullptr;
-#   ifdef MACRO_ECS_DEADBEEF_SAFETY
-    std::size_t safety = 0;
-#   endif
 
     using IdFuncPtr = void (*)();
     virtual void * full_downcast(IdFuncPtr) noexcept = 0;
+
 protected:
     ReferenceCounter() {}
 };
@@ -44,21 +63,23 @@ void decrement(ReferenceCounter *);
 
 void increment(ReferenceCounter *);
 
+// ----------------------------------------------------------------------------
+
 template <typename ... Types>
 struct ForTypes {
     template <typename T>
-    struct HasConstOf {
-        static const constexpr bool value = false;
-    };
+    struct HasConstOf
+        { static const constexpr bool value = false; };
+
     template <typename T>
     struct Has {
         static const constexpr bool value = false;
         static const constexpr bool or_const_of = false;
     };
+
     template <typename ... OtherTypes>
-    struct IsSuperSetOf {
-        static const constexpr bool value = true;
-    };
+    struct IsSuperSetOf
+        { static const constexpr bool value = true; };
 };
 
 template <typename Head, typename ... Types>
@@ -69,6 +90,7 @@ struct ForTypes<Head, Types...> : public ForTypes<Types...> {
             std::is_same<const Head, T>::value ||
             ForTypes<Types...>::template HasConstOf<T>::value;
     };
+
     template <typename T>
     struct Has {
         static const constexpr bool value =
@@ -78,10 +100,11 @@ struct ForTypes<Head, Types...> : public ForTypes<Types...> {
             std::is_same<Head, T>::value || std::is_same<const Head, T>::value ||
             ForTypes<Types...>::template Has<T>::or_const_of;
     };
+
     template <typename ... OtherTypes>
-    struct IsSuperSetOf {
-        static const constexpr bool value = true;
-    };
+    struct IsSuperSetOf
+        { static const constexpr bool value = true; };
+
     template <typename OtherHead, typename ... OtherTypes>
     struct IsSuperSetOf<OtherHead, OtherTypes...> {
         static const constexpr bool value =
@@ -93,11 +116,13 @@ struct ForTypes<Head, Types...> : public ForTypes<Types...> {
     };
 };
 
+// ----------------------------------------------------------------------------
+
 class EntityRefAtt;
 class EntityAtt;
 
 constexpr const std::size_t k_auto_inline_size = 3*sizeof(void *);
-constexpr const int k_no_inline_index = -1;
+constexpr const int         k_no_inline_index  = -1;
 
 template <typename Type>
 struct WouldInlineComponent {
@@ -109,17 +134,18 @@ struct WouldInlineComponent {
 template <typename ... Types>
 struct CountInlinedComponents {
     template <typename Type>
-    struct GetInlineIndex {
-        static constexpr const int k_index = k_no_inline_index;
-    };
+    struct GetInlineIndex
+        { static constexpr const int k_index = k_no_inline_index; };
+
     static constexpr const int k_count = 0;
 };
 
 template <typename Head, typename ... Types>
 struct CountInlinedComponents<Head, Types...> : public CountInlinedComponents<Types...> {
     static constexpr const bool k_inline_head = WouldInlineComponent<Head>::k_value;
-    static constexpr const int k_count =
+    static constexpr const int  k_count       =
         (k_inline_head ? 1 : 0) + CountInlinedComponents<Types...>::k_count;
+
     template <typename Type>
     struct GetInlineIndex {
         static constexpr const int k_index = ConstIntSelect<
@@ -130,18 +156,21 @@ struct CountInlinedComponents<Head, Types...> : public CountInlinedComponents<Ty
     };
 };
 
+// ----------------------------------------------------------------------------
+
 struct UscDelNotifier {
     virtual ~UscDelNotifier();
     virtual void notify_deletion(std::size_t) = 0;
 };
 
+// ----------------------------------------------------------------------------
+
 template <bool k_is_inlined, typename Type>
-struct TableEntryImpl;
+class TableEntryImpl;
 
 template <typename Type>
-struct TableEntryImpl<true, Type> {
-    using Storage = typename std::aligned_storage<sizeof(Type), alignof(Type)>::type;
-
+class TableEntryImpl<true, Type> {
+public:
     TableEntryImpl() {}
     TableEntryImpl(const TableEntryImpl &) = delete;
     TableEntryImpl(TableEntryImpl &&) = delete;
@@ -158,11 +187,14 @@ struct TableEntryImpl<true, Type> {
 
     Type * get() { return reinterpret_cast<Type *>(&m); }
 
+private:
+    using Storage = typename std::aligned_storage<sizeof(Type), alignof(Type)>::type;
     Storage m;
 };
 
 template <typename Type>
-struct TableEntryImpl<false, Type> {
+class TableEntryImpl<false, Type> {
+public:
     TableEntryImpl() {}
     TableEntryImpl(const TableEntryImpl &) = delete;
     TableEntryImpl(TableEntryImpl &&) = delete;
@@ -182,11 +214,15 @@ struct TableEntryImpl<false, Type> {
 
     const Type * get() const { return m; }
 
+private:
     Type * m = nullptr;
 };
 
+// ----------------------------------------------------------------------------
+
 template <typename ... Types>
-struct ComponentTable {
+class ComponentTable {
+public:
     static constexpr const char * const k_never_should_be_called_msg =
         "This function should never be called and "
         "exists only to make compliation possible.";
@@ -199,7 +235,8 @@ struct ComponentTable {
 };
 
 template <typename Head, typename ... Types>
-struct ComponentTable<Head, Types...> : public ComponentTable<Types...> {
+class ComponentTable<Head, Types...> : public ComponentTable<Types...> {
+public:
     static constexpr const bool k_component_inlined = WouldInlineComponent<Head>::k_value;
     using ComponentTable<Types...>::get;
     using ComponentTable<Types...>::add;
@@ -219,6 +256,7 @@ struct ComponentTable<Head, Types...> : public ComponentTable<Types...> {
 
     void remove(TypeTag<Head>) { m.remove(); }
 
+private:
     TableEntryImpl<k_component_inlined, Head> m;
 };
 
@@ -228,11 +266,7 @@ public:
     using FullTypeList = TypeList<Types...>;
     using CountInlined = CountInlinedComponents<Types...>;
     using RtError      = std::runtime_error;
-    template <typename Type>
-    struct HasType {
-        static constexpr const bool k_value =
-            FullTypeList::template HasType<Type>::k_value;
-    };
+
     template <typename Type>
     struct InlineIndex {
         static const constexpr int k_index =
@@ -242,61 +276,28 @@ public:
     ComponentTableHead() {}
     ComponentTableHead(const ComponentTableHead &) = delete;
     ComponentTableHead(ComponentTableHead &&) = delete;
-    ~ComponentTableHead()
-        { remove_all(); }
+    ~ComponentTableHead() { remove_all(); }
 
     ComponentTableHead & operator = (const ComponentTableHead &) = delete;
     ComponentTableHead & operator = (ComponentTableHead &&) = delete;
 
     template <typename Type>
-    typename std::enable_if<HasType<Type>::k_value, Type>::
-    type & add() {
-        static const constexpr int k_index = InlineIndex<Type>::k_index;
-        if (get_ptr<Type>()) {
-            throw RtError("ComponentTableHead::add(): component of this type is already present.");
-        }
-        Type * rv = m_table.template add<Type>(TypeTag<Type>());
-        if (k_index != k_no_inline_index) {
-            m_inlined_present.set(k_index);
-        }
-        return *rv;
-    }
+    typename std::enable_if<FullTypeList::template HasType<Type>::k_value, Type>::
+    type & add();
 
     template <typename Type>
-    const typename std::enable_if<HasType<Type>::k_value, Type>::
-    type * get_ptr() const noexcept {
-        static const constexpr int k_index = InlineIndex<Type>::k_index;
-        if constexpr (k_index == k_no_inline_index) {
-            return m_table.template get<Type>(TypeTag<Type>());
-        }
-        if (m_inlined_present.test(k_index)) {
-            return m_table.template get<Type>(TypeTag<Type>());
-        }
-        return nullptr;
-    }
+    const typename std::enable_if<FullTypeList::template HasType<Type>::k_value, Type>::
+    type * get_ptr() const noexcept;
 
     template <typename Type>
-    typename std::enable_if<HasType<Type>::k_value, Type>::
-    type * get_ptr() noexcept {
-        const auto * const_this = this;
-        return const_cast<Type *>(const_this->template get_ptr<Type>());
-    }
+    typename std::enable_if<FullTypeList::template HasType<Type>::k_value, Type>::
+    type * get_ptr() noexcept;
 
     template <typename Type>
-    typename std::enable_if<HasType<Type>::k_value, void>::
-    type remove() {
-        if (!get_ptr<Type>()) {
-            throw RtError("ComponentTableHead::remove(): cannot remove a "
-                          "component that is not present.");
-        }
-        static const constexpr int k_index = InlineIndex<Type>::k_index;
-        if (k_index != k_no_inline_index)
-            { m_inlined_present.reset(k_index); }
-        (void)m_table.template remove(TypeTag<Type>());
-    }
+    typename std::enable_if<FullTypeList::template HasType<Type>::k_value, void>::
+    type remove();
 
-    void remove_all()
-        { remove_all_(TypeList<Types...>()); }
+    void remove_all() { remove_all_(TypeList<Types...>()); }
 
     static void id_func() {}
 
@@ -308,16 +309,73 @@ private:
     void remove_all_(TypeList<OtherTypes...>) {}
 
     template <typename Head, typename ... OtherTypes>
-    void remove_all_(TypeList<Head, OtherTypes...>) {
-        if (get_ptr<Head>())
-            { remove<Head>(); }
-        remove_all_(TypeList<OtherTypes...>());
-    }
+    void remove_all_(TypeList<Head, OtherTypes...>);
 
     using BitSet = std::bitset<CountInlined::k_count>;
     ComponentTable<Types...> m_table;
     BitSet m_inlined_present;
 };
+
+template <typename ... Types>
+template <typename Type>
+typename std::enable_if<TypeList<Types...>::template HasType<Type>::k_value, Type>::
+type & ComponentTableHead<Types...>::add() {
+    static const constexpr int k_index = InlineIndex<Type>::k_index;
+    if (get_ptr<Type>()) {
+        throw RtError("ComponentTableHead::add(): component of this type is already present.");
+    }
+    Type * rv = m_table.template add<Type>(TypeTag<Type>());
+    if (k_index != k_no_inline_index) {
+        m_inlined_present.set(k_index);
+    }
+    return *rv;
+}
+
+template <typename ... Types>
+template <typename Type>
+const typename std::enable_if<TypeList<Types...>::template HasType<Type>::k_value, Type>::
+type * ComponentTableHead<Types...>::get_ptr() const noexcept {
+    static const constexpr int k_index = InlineIndex<Type>::k_index;
+    if constexpr (k_index == k_no_inline_index) {
+        return m_table.template get<Type>(TypeTag<Type>());
+    }
+    if (m_inlined_present.test(k_index)) {
+        return m_table.template get<Type>(TypeTag<Type>());
+    }
+    return nullptr;
+}
+
+template <typename ... Types>
+template <typename Type>
+typename std::enable_if<TypeList<Types...>::template HasType<Type>::k_value, Type>::
+type * ComponentTableHead<Types...>::get_ptr() noexcept {
+    const auto * const_this = this;
+    return const_cast<Type *>(const_this->template get_ptr<Type>());
+}
+
+template <typename ... Types>
+template <typename Type>
+typename std::enable_if<TypeList<Types...>::template HasType<Type>::k_value, void>::
+type ComponentTableHead<Types...>::remove() {
+    if (!get_ptr<Type>()) {
+        throw RtError("ComponentTableHead::remove(): cannot remove a "
+                      "component that is not present.");
+    }
+    static const constexpr int k_index = InlineIndex<Type>::k_index;
+    if (k_index != k_no_inline_index)
+        { m_inlined_present.reset(k_index); }
+    (void)m_table.template remove(TypeTag<Type>());
+}
+
+template <typename ... Types>
+template <typename Head, typename ... OtherTypes>
+/* private */ void ComponentTableHead<Types...>::remove_all_(TypeList<Head, OtherTypes...>) {
+    if (get_ptr<Head>())
+        { remove<Head>(); }
+    remove_all_(TypeList<OtherTypes...>());
+}
+
+// ----------------------------------------------------------------------------
 
 template <typename Iterator>
 class Range {

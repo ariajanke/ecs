@@ -415,13 +415,18 @@ int main() {
         (ecs::detail::WouldInlineComponent<FrameCounter>::k_value)<< std::endl;
 
     std::cout <<
-    TestCount::GetInlineIndex<Velocity>::k_index << " " <<
-    TestCount::GetInlineIndex<Position>::k_index << " " <<
-    TestCount::GetInlineIndex<Displacement>::k_index << " " <<
-    TestCount::GetInlineIndex<Mass>::k_index << " " <<
-    TestCount::GetInlineIndex<Radius>::k_index << " " <<
-    TestCount::GetInlineIndex<Name>::k_index << " " <<
-    TestCount::GetInlineIndex<FrameCounter>::k_index << std::endl;
+        TestCount::GetInlineIndex<Velocity>::k_index << " " <<
+        TestCount::GetInlineIndex<Position>::k_index << " " <<
+        TestCount::GetInlineIndex<Displacement>::k_index << " " <<
+        TestCount::GetInlineIndex<Mass>::k_index << " " <<
+        TestCount::GetInlineIndex<Radius>::k_index << " " <<
+        TestCount::GetInlineIndex<Name>::k_index << " " <<
+        TestCount::GetInlineIndex<FrameCounter>::k_index << std::endl;
+
+    std::cout << "Entity component table size "
+              << Entity::k_component_table_size << " bytes.\n"
+              << "Number of inlined components "
+              << Entity::k_number_of_components_inlined << "." << std::endl;
 
     EntityManager emana;
     SystemsLayer<DrawSys, AccSys, VelSys, ColSys, FrameCountSys> systems;

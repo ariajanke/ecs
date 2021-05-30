@@ -1,6 +1,8 @@
 #include <ecs/ecs.hpp>
 
 #include <common/Util.hpp>
+#include <common/Vector2Util.hpp>
+#include <common/SfmlVectorTraits.hpp>
 
 #include <iostream>
 #include <memory>
@@ -83,7 +85,8 @@ namespace {
 using Vector = sf::Vector2<double>;
 
 struct Velocity     : public Vector {
-
+    Velocity() = default;
+    Velocity(Vector r): Vector(r) {}
 };
 struct Position     : public Vector {
     Position() = default;
@@ -107,9 +110,24 @@ struct Name {
     std::string s;
 };
 
+struct TestComp {
+    std::array<void *, 4> m;
+};
+
+}
+#if 0
+namespace ecs {
+
+template <>
+struct DefineWouldInline<Name> : public TrueType {};
+
+}
+#endif
+namespace {
+
 struct FrameCounter { int fc = 0; };
 
-using Entity = ecs::Entity<Velocity, Position, Displacement, Mass, Radius, Name, FrameCounter>;
+using Entity = ecs::Entity<Velocity, Position, Displacement, Mass, Radius, Name, FrameCounter, TestComp>;
 static_assert (ecs::detail::ForTypes<Velocity, Position, Displacement, Mass, Radius, Name>::Has<Velocity>::value, "" );
 using EntityManager = Entity::ManagerType;
 using System = EntityManager::SystemType;
@@ -185,7 +203,7 @@ class ColSys final :
             if (!has_ucomponent(e)) add_ucomponent(e);
             ucomponent_for(e).others.clear();
         }
-        quad_range<Entity>(cont, [this](Entity a, Entity b) {
+        cul::quad_range/*<Entity>*/(cont, [this](Entity a, Entity b) {
             ucomponent_for(a).others.push_back(b);
             ucomponent_for(b).others.push_back(a);
         });
@@ -193,7 +211,11 @@ class ColSys final :
         for (auto e : cont) {
             auto & dis = e.get<Displacement>();
             for (auto & other : ucomponent_for(e).others) {
-                dis = trim_displacement(dis, e, Entity(other));
+                auto ndis = trim_displacement(dis, e, Entity(other));
+                if (ndis != dis) {
+                    e.get<Velocity>() *= -1.;
+                }
+                dis = ndis;
             }
             e.get<Position>() += dis;
             dis = Vector();
@@ -207,7 +229,7 @@ class ColSys final :
         Vector b_pos = b.get<Position>();
         double pass_thershold = a.get<Radius>() + b.get<Radius>();
         auto overlaps_at = [=](double t) {
-            return magnitude((a_pos + a_dis*t) - b_pos) < pass_thershold;
+            return cul::magnitude((a_pos + a_dis*t) - b_pos) < pass_thershold;
         };
         if (overlaps_at(0)) return a_dis;
         if (overlaps_at(1)) {
@@ -239,13 +261,14 @@ class AccSys final : public System, public TimeAwareSystem {
     // const mass, const position, velocity
     // non-chunkable
     void update(const ContainerView & cont) override {
-        quad_range<Entity>(cont, [this](Entity a, Entity b) {
+        cul::quad_range/*<Entity>*/(cont, [this](Entity a, Entity b) {
             do_pair(a, b);
             do_pair(b, a);
         });
     }
     void do_pair(Entity & a, Entity & b) {
-        static constexpr const double k_grav = 0.0025;
+        using namespace cul;
+        static constexpr const double k_grav = 0.0025*4.;
         auto diff = b.get<Position>() - a.get<Position>();
         auto dist = magnitude(diff);
         auto prod_mass = a.get<Mass>() * b.get<Mass>();
@@ -319,7 +342,7 @@ sf::Color random_color(std::default_random_engine & rng) {
 Disc make_disc
     (std::default_random_engine & rng, double radius)
 {
-    static constexpr const double k_pi = get_pi<double>();
+    static constexpr const double k_pi = cul::k_pi_for_type<double>;
     std::vector<sf::Vertex> rv;
     double steps = std::max(std::min(std::round(radius / 5.), 20.), 8.);
     rv.reserve(std::size_t(steps)*3);
@@ -412,7 +435,8 @@ int main() {
         (ecs::detail::WouldInlineComponent<Mass>::k_value)<< " " <<
         (ecs::detail::WouldInlineComponent<Radius>::k_value) << " " <<
         (ecs::detail::WouldInlineComponent<Name>::k_value) << " " <<
-        (ecs::detail::WouldInlineComponent<FrameCounter>::k_value)<< std::endl;
+        (ecs::detail::WouldInlineComponent<FrameCounter>::k_value) << " " <<
+        (ecs::detail::WouldInlineComponent<TestComp>::k_value) << std::endl;
 
     std::cout <<
         TestCount::GetInlineIndex<Velocity>::k_index << " " <<
@@ -421,12 +445,14 @@ int main() {
         TestCount::GetInlineIndex<Mass>::k_index << " " <<
         TestCount::GetInlineIndex<Radius>::k_index << " " <<
         TestCount::GetInlineIndex<Name>::k_index << " " <<
-        TestCount::GetInlineIndex<FrameCounter>::k_index << std::endl;
+        TestCount::GetInlineIndex<FrameCounter>::k_index << " " <<
+        TestCount::GetInlineIndex<TestComp>::k_index << std::endl;
 
     std::cout << "Entity component table size "
               << Entity::k_component_table_size << " bytes.\n"
               << "Number of inlined components "
-              << Entity::k_number_of_components_inlined << "." << std::endl;
+              << Entity::k_number_of_components_inlined << " / "
+              << Entity::k_component_count << "." << std::endl;
 
     EntityManager emana;
     SystemsLayer<DrawSys, AccSys, VelSys, ColSys, FrameCountSys> systems;
@@ -447,6 +473,7 @@ int main() {
     auto b = emana.create_new_entity();
     add_typicals(b, 20, 10, 320, 80);
     b.add<Name>().s = "small";
+    b.get<Velocity>() = Vector(6., 3.);
 #   if 0
     EntityManager::FilteredEntity<Position, Velocity> efv(b);
     efv.get<Velocity>().x = 0.25;

@@ -30,7 +30,19 @@
 
 namespace ecs {
 
+using cul::TypeList;
+using cul::TypeTag;
+
 struct InlinedComponent {};
+
+struct TrueType
+    { static constexpr const bool k_value = true; };
+
+struct FalseType
+    { static constexpr const bool k_value = false; };
+
+template <typename T>
+struct DefineWouldInline : public FalseType {};
 
 namespace detail {
 
@@ -127,8 +139,9 @@ constexpr const int         k_no_inline_index  = -1;
 template <typename Type>
 struct WouldInlineComponent {
     static constexpr const bool k_value =
-        std::is_base_of<InlinedComponent, Type>::value ||
-        sizeof(Type) < k_auto_inline_size;
+           std::is_base_of_v<InlinedComponent, Type>
+        || DefineWouldInline<Type>::k_value
+        || sizeof(Type) <= k_auto_inline_size;
 };
 
 template <typename ... Types>
@@ -148,7 +161,7 @@ struct CountInlinedComponents<Head, Types...> : public CountInlinedComponents<Ty
 
     template <typename Type>
     struct GetInlineIndex {
-        static constexpr const int k_index = ConstIntSelect<
+        static constexpr const int k_index = cul::ConstIntSelect<
             std::is_same<Type, Head>::value && k_inline_head,
             k_count - 1,
             CountInlinedComponents<Types...>::template GetInlineIndex<Type>::k_index

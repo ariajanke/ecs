@@ -43,6 +43,9 @@ namespace ecs {
 ///       inlined automatically, this may change in future releases.
 struct InlinedComponent;
 
+template <typename T>
+struct DefineWouldInline;
+
 template <typename ... Types>
 class Entity;
 
@@ -171,6 +174,16 @@ private:
 
 template <typename ... Types>
 class System;
+#if 0
+template <typename ... Types>
+class DefineDefineTupleSystem;
+#endif
+template <typename TeType>
+struct Optional {
+    using Type           = TeType;
+    using AsPointer      = Type *;
+    using AsConstPointer = const Type *;
+};
 
 /// @brief
 /// Entities are a means to point to/access a set of uniquely typed components.
@@ -186,8 +199,12 @@ public:
     friend class detail::EntityAtt;
     friend class EntityRef;
 
-    using ManagerType = EntityManager<Types...>;
-    using SystemType  = System       <Types...>;
+    using ManagerType       = EntityManager<Types...>;
+    using SystemType        = System       <Types...>;
+    using ComponentTypeList = TypeList     <Types...>;
+#   if 0
+    using DefineTupleSystem = DefineDefineTupleSystem<Types...>;
+#   endif
 
     /// Component table's size in bytes
     static constexpr const std::size_t k_component_table_size =
@@ -203,6 +220,8 @@ public:
     ///       incurred. (this is not tested)
     static constexpr const std::size_t k_number_of_components_inlined =
         detail::ComponentTableHead<Types...>::CountInlined::k_count;
+
+    static constexpr const std::size_t k_component_count = sizeof...(Types);
 
     /// @brief Creates a null entity, which may not be associated with any
     ///        components.
@@ -432,8 +451,9 @@ private:
 template <typename ... Types>
 class EntityManager final : public detail::ReferenceManager {
 public:
-    using EntityType = Entity<Types...>;
-    using SystemType = System<Types...>;
+    using EntityType        = Entity  <Types...>;
+    using SystemType        = System  <Types...>;
+    using ComponentTypeList = TypeList<Types...>;
 
     template <typename T>
     struct HasType {

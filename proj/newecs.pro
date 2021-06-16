@@ -26,8 +26,8 @@ QMAKE_CXXFLAGS += -std=c++14 -DMACRO_COMPILER_GCC
 QMAKE_LFLAGS   += -std=c++14
 LIBS           += -lsfml-window -lsfml-system -lsfml-graphics -lcommon-d
 
-SOURCES += \
-    ecs_test.cpp
+SOURCES += ecs_test.cpp
+# SOURCES += ecs_test2.cpp
 
 HEADERS += \
     ../inc/ecs/ecs.hpp \

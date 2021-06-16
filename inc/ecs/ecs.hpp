@@ -183,6 +183,8 @@ struct Optional {
     using Type           = TeType;
     using AsPointer      = Type *;
     using AsConstPointer = const Type *;
+
+
 };
 
 /// @brief
@@ -327,9 +329,12 @@ public:
     void request_deletion() { m_table->requesting_deletion = true; }
 
     /// @returns true if the entity is requesting deletion
+    ///
     /// @note An entity which is requesting deletion is not an expired entity.
     ///       (yet!)
-    bool is_requesting_deletion() const { return m_table->requesting_deletion; }
+    /// @warning there should be no behavior/system that depends on knowing
+    ///          whether an entity is about to be delete or not
+    [[deprecated]] bool is_requesting_deletion() const { return m_table->requesting_deletion; }
 
     /// @brief Evalates to true if the entity has not expired.
     /// @note on semantics: often used to "evaluate true, then access components"
@@ -414,9 +419,9 @@ protected:
     using Range                  = detail::Range<ComponentIterator>;
     using ConstRange             = detail::Range<ComponentConstIterator>;
 
-    UniqueToSystemComponent() {}
-    UniqueToSystemComponent(const UniqueToSystemComponent &) = delete;
-    ~UniqueToSystemComponent() override;
+    [[deprecated]] UniqueToSystemComponent() {}
+    [[deprecated]] UniqueToSystemComponent(const UniqueToSystemComponent &) = delete;
+    [[deprecated]] ~UniqueToSystemComponent() override;
 
     UniqueToSystemComponent & operator = (const UniqueToSystemComponent &) = delete;
 
@@ -460,6 +465,11 @@ public:
         static constexpr const bool k_value = TypeList<Types...>::template HasType<T>::k_value;
     };
 
+    struct OnEntityDelete {
+        virtual ~OnEntityDelete() {}
+        virtual void operator () (EntityType &) const = 0;
+    };
+
     EntityManager() {}
     EntityManager(const EntityManager &) = delete;
     EntityManager & operator = (const EntityManager &) = delete;
@@ -476,13 +486,15 @@ public:
     ///       outlive the manager object.
     ///
     /// @throws if nullptr is provided
-    void register_system(SystemType *);
+    [[deprecated]] void register_system(SystemType *);
 
     /// Removes all systems currently in use by the manager.
-    void clear_systems_list();
+    [[deprecated]] void clear_systems_list();
 
     /// Runs update calls to all registered systems.
-    void update_systems();
+    [[deprecated]] void update_systems();
+
+    void run_system(SystemType &);
 
     /// @brief Responds to all deletion requests.
     ///
@@ -498,6 +510,12 @@ public:
     /// themselves should still maintain a valid state. All these entity
     /// references and entities however, will become "expired".
     void process_deletion_requests();
+
+    ///
+    /// @note Something I've noticed, I don't logic in destructors, but without
+    ///       a way to inject behavior, destructor logic becomes unavoidable!
+    ///
+    void process_deletion_requests(OnEntityDelete &);
 
 private:
     detail::ReferenceCounter * provide_new_identity() override;
@@ -791,15 +809,33 @@ void EntityManager<Types...>::update_systems() {
     for (auto * sys : m_systems) {
         sys->update(crange);
     }
+
     append_new_entities();
 }
 
 template <typename ... Types>
+void EntityManager<Types...>::run_system(SystemType & syncro_system) {
+    detail::Range<decltype (m_unfiltered_entities.begin())> crange
+        { m_unfiltered_entities.begin(), m_unfiltered_entities.end() };
+    syncro_system.update(crange);
+}
+
+template <typename ... Types>
 void EntityManager<Types...>::process_deletion_requests() {
+    class NullOnEntityDelete final : public OnEntityDelete {
+        void operator () (EntityType &) const final {}
+    };
+    NullOnEntityDelete inst;
+    process_deletion_requests(inst);
+}
+
+template <typename ... Types>
+void EntityManager<Types...>::process_deletion_requests(OnEntityDelete & on_delete) {
     using namespace detail;
     append_new_entities();
     for (auto & ent : m_unfiltered_entities) {
         if (!EntityRefAtt::is_requesting_deletion(ent)) continue;
+        on_delete(ent);
         for (auto * ucs : m_ucsystems) {
             ucs->notify_deletion(ent);
         }
@@ -809,6 +845,7 @@ void EntityManager<Types...>::process_deletion_requests() {
     auto del_beg = std::remove_if(m_unfiltered_entities.begin(), m_unfiltered_entities.end(),
                                   EntityRefAtt::is_requesting_deletion);
     m_unfiltered_entities.erase(del_beg, m_unfiltered_entities.end());
+    append_new_entities();
 }
 
 template <typename ... Types>

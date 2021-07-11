@@ -378,7 +378,7 @@ type ComponentTableHead<Types...>::remove() {
     static const constexpr int k_index = InlineIndex<Type>::k_index;
     if (k_index != k_no_inline_index)
         { m_inlined_present.reset(k_index); }
-    (void)m_table.template remove(TypeTag<Type>());
+    (void)m_table.remove(TypeTag<Type>());
 }
 
 template <typename ... Types>

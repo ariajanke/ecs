@@ -52,7 +52,8 @@ struct ReferenceManager {
     static ReferenceManager & null_instance();
 
     virtual ~ReferenceManager();
-    virtual ReferenceCounter * provide_new_identity() = 0;
+    // fixed for vocab limiting... "create" means "unmanaged pointer"
+    virtual ReferenceCounter * create_identity() = 0;
 };
 
 struct ReferenceCounter {

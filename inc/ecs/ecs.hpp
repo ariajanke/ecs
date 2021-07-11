@@ -170,6 +170,13 @@ private:
     ReferenceCounter * m_identity = nullptr;
 };
 
+/// Utiltiy structure that can be used for hash maps, essentially a definition
+/// in the style of "std::hash".
+struct EntityHasher {
+    std::size_t operator () (const EntityRef & eref) const
+        { return eref.hash(); }
+};
+
 // ----------------------------------------------------------------------------
 
 template <typename ... Types>
@@ -183,9 +190,11 @@ struct Optional {
     using Type           = TeType;
     using AsPointer      = Type *;
     using AsConstPointer = const Type *;
-
-
 };
+
+/// Type alias for std::tuple
+template <typename ... Types>
+using Tuple = std::tuple<Types...>;
 
 /// @brief
 /// Entities are a means to point to/access a set of uniquely typed components.
@@ -204,9 +213,6 @@ public:
     using ManagerType       = EntityManager<Types...>;
     using SystemType        = System       <Types...>;
     using ComponentTypeList = TypeList     <Types...>;
-#   if 0
-    using DefineTupleSystem = DefineDefineTupleSystem<Types...>;
-#   endif
 
     /// Component table's size in bytes
     static constexpr const std::size_t k_component_table_size =
@@ -270,17 +276,46 @@ public:
     ///        parameter.
     /// @returns An entirely new entity, which will have its own set of
     ///          components.
-    static Entity create_new_entity(detail::ReferenceManager &);
+    /// @deprecated use "make_entity" instead, as per vocabulary limiting
+    [[deprecated]] static Entity create_new_entity(detail::ReferenceManager &);
 
     /// @brief Creates a new entity using the refenece manager of this entity.
     /// @returns An entirely new entity, which will have its own set of
     ///          components.
-    Entity create_new_entity() const;
+    /// @deprecated use "make_entity" instead, as per vocabulary limiting
+    [[deprecated]] Entity create_new_entity() const;
 
-    /// @tparam T type of component to get
+    /// @brief Creates a new entity using a reference manager provided as a
+    ///        parameter.
+    /// @returns An entirely new entity, which will have its own set of
+    ///          components.
+    /// @deprecated use "make_entity" instead, as per vocabulary limiting
+    static Entity make_entity(detail::ReferenceManager &);
+
+    /// @brief Creates a new entity using the refenece manager of this entity.
+    /// @returns An entirely new entity, which will have its own set of
+    ///          components.
+    /// @deprecated use "make_entity" instead, as per vocabulary limiting
+    Entity make_entity() const;
+
+    /// @tparam T type of component to check
     /// @returns true if the component is present
     template <typename T>
     bool has() const { return (ptr<T>() != nullptr); }
+
+    /// @tparam T one type of component to check
+    /// @tparam U another type of component to check
+    /// @tparam FurtherTypes any further component types to check
+    /// @returns true if all components are present, false otherwise
+    template <typename T, typename U, typename ... FurtherTypes>
+    bool has_all() const;
+
+    /// @tparam T one type of component to check
+    /// @tparam U another type of component to check
+    /// @tparam FurtherTypes any further component types to check
+    /// @returns true if any component is present, false only if all are absent
+    template <typename T, typename U, typename ... FurtherTypes>
+    bool has_any() const;
 
     /// @brief Gets a writable component by type.
     /// @tparam T type of component to get
@@ -288,11 +323,27 @@ public:
     template <typename T>
     T & get();
 
+    /// @brief Gets a tuple of writable component references by their types.
+    /// @tparam T one type of component to get
+    /// @tparam U another type of component to get
+    /// @tparam FurtherTypes any further component types to get
+    /// @throws if any requested component has not been added
+    template <typename T, typename U, typename ... FurtherTypes>
+    Tuple<T &, U &, FurtherTypes & ...> get();
+
     /// @brief Gets a read only component by type.
     /// @tparam T type of component to get
     /// @throws if the requested component has not been added
     template <typename T>
     const T & get() const;
+
+    /// @brief Gets a tuple of read only component references by their types.
+    /// @tparam T one type of component to get
+    /// @tparam U another type of component to get
+    /// @tparam FurtherTypes any further component types to get
+    /// @throws if any requested component has not been added
+    template <typename T, typename U, typename ... FurtherTypes>
+    Tuple<const T &, const U &, const FurtherTypes & ...> get() const;
 
     /// @brief Gets a pointer to a writable component by type.
     /// @tparam T type of component to get
@@ -300,11 +351,22 @@ public:
     template <typename T>
     T * ptr() { return m_table->template get_ptr<T>(); }
 
+    /// @brief Gets a tuple of pointers to writable components by their types.
+    /// @tparam T one type of component to get
+    /// @tparam U another type of component to get
+    /// @tparam FurtherTypes any further component types to get
+    /// @throws if any requested component has not been added
+    template <typename T, typename U, typename ... FurtherTypes>
+    Tuple<T *, U *, FurtherTypes * ...> ptr();
+
     /// @brief Gets a pointer to a read only component by type.
     /// @tparam T type of component to get
     /// @returns a nullptr if the component is not present
     template <typename T>
     const T * ptr() const { return m_table->template get_ptr<T>(); }
+
+    template <typename T, typename U, typename ... FurtherTypes>
+    Tuple<const T *, const U *, const FurtherTypes * ...> ptr() const;
 
     /// @brief Adds a new component by type.
     /// @tparam T type of component to get
@@ -312,17 +374,26 @@ public:
     template <typename T>
     T & add() { return m_table->template add<T>(); }
 
+    template <typename T, typename U, typename ... FurtherTypes>
+    Tuple<T &, U &, FurtherTypes & ...> add();
+
     /// @brief Gets a writable reference to a component by type, if it is not
     /// present, it is added.
     /// @tparam T type of component to get
     template <typename T>
     T & ensure() { return ptr<T>() ? get<T>() : add<T>(); }
 
+    template <typename T, typename U, typename ... FurtherTypes>
+    Tuple<T &, U &, FurtherTypes & ...> ensure();
+
     /// @brief Removes a component by type.
     /// @tparam T type of component to remove
     /// @throws if the component is not present
     template <typename T>
     void remove() { m_table->template remove<T>(); }
+
+    template <typename T, typename U, typename ... FurtherTypes>
+    void remove();
 
     /// Requested that the refered entity be deleted by the owning manager
     /// object. Entities cannot delete themselves.
@@ -362,6 +433,34 @@ private:
     static constexpr const auto k_comp_not_present_msg =
         "Entity::get<T>: component of this type is not present.";
 
+    template <typename ... OtherTypes>
+    struct HasAllAsComponents {
+        static constexpr const bool k_value = true;
+    };
+
+    template <typename HeadType, typename ... OtherTypes>
+    struct HasAllAsComponents<HeadType, OtherTypes...> :
+        public HasAllAsComponents<OtherTypes...>
+    {
+        static constexpr const bool k_value =
+               TypeList<Types...>::template HasType<HeadType>::k_value
+            && HasAllAsComponents<OtherTypes...>::k_value;
+    };
+
+    template <typename ... OtherTypes>
+    static constexpr const bool kt_all_unique_and_all_components =
+           cul::UniqueTypes<OtherTypes...>::k_value
+        && HasAllAsComponents<OtherTypes...>::k_value;
+
+    template <typename ... OtherTypes>
+    struct AssertAllCompsAreUniqueAndPresent {
+        static_assert(kt_all_unique_and_all_components<OtherTypes...>,
+            "All listed types must be a parameter pack where each parameter is a "
+            "unique type, and each type is a component type used to define this "
+            "Entity.");
+        constexpr AssertAllCompsAreUniqueAndPresent() {}
+    };
+
     using ComponentsTable = detail::ComponentTableHead<Types...>;
 
     /// @throws  If the component table associated with the reference is of a
@@ -370,6 +469,12 @@ private:
     /// @returns The full component table from a given entity reference. This
     ///          function will never return nullptr
     static ComponentsTable * get_fulltable(const EntityRef &);
+
+    template <typename T, typename U, typename ... FurtherTypes>
+    Tuple<T &, U &, FurtherTypes & ...> add_impl() noexcept;
+
+    template <typename T, typename U, typename ... FurtherTypes>
+    void remove_impl() noexcept;
 
     ComponentsTable * m_table = nullptr;
 };
@@ -477,7 +582,12 @@ public:
 
     /// Creates an entirely new entity pointing to a different set of
     /// components.
-    EntityType create_new_entity();
+    /// @deprecated use "make_entity" instead (as per vocabulary limiting)
+    [[deprecated]] EntityType create_new_entity();
+
+    /// Creates an entirely new entity pointing to a different set of
+    /// components.
+    EntityType make_entity();
 
     /// Registers a system for use by the manager. Any "Unique to system"
     /// component databases should also be fed to this member function.
@@ -518,7 +628,7 @@ public:
     void process_deletion_requests(OnEntityDelete &);
 
 private:
-    detail::ReferenceCounter * provide_new_identity() override;
+    detail::ReferenceCounter * create_identity() override;
 
     void append_new_entities();
 
@@ -650,12 +760,21 @@ Entity<Types...> & Entity<Types...>::operator = (Entity && rhs) {
 template <typename ... Types>
 /* static */ Entity<Types...> Entity<Types...>::create_new_entity
     (detail::ReferenceManager & manager)
+{ return make_entity(manager); }
+
+template <typename ... Types>
+Entity<Types ...> Entity<Types ...>::create_new_entity() const
+    { return make_entity(); }
+
+template <typename ... Types>
+/* static */ Entity<Types...> Entity<Types...>::make_entity
+    (detail::ReferenceManager & manager)
 {
     using RtError = std::runtime_error;
-    auto * counter = manager.provide_new_identity();
+    auto * counter = manager.create_identity();
     if (!counter) {
-        throw RtError("Entity<Types...>::create_new_entity(): failed to create "
-                      "new entity.");
+        throw RtError("Entity<Types...>::make_entity(): failed to create new "
+                      "entity. [this maybe a bug in *this* library, sorry]");
     }
 
     try {
@@ -669,11 +788,38 @@ template <typename ... Types>
 }
 
 template <typename ... Types>
-Entity<Types ...> Entity<Types ...>::create_new_entity() const {
-    if (!m_table) {
-        throw std::runtime_error("Entity::create_new_entity(): uninitialized entities cannot create new entities.");
+Entity<Types...> Entity<Types...>::make_entity() const {
+    if (m_table) {
+        return Entity<Types ...>::make_entity(*m_table->reference_manager);
     }
-    return Entity<Types ...>::create_new_entity(*m_table->reference_manager);
+    throw std::runtime_error("Entity::make_entity(): uninitialized entities "
+                             "cannot create new entities.");
+}
+
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+bool Entity<Types ...>::has_all() const {
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    bool has_t = has<T>();
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        return has_t && has_all<U, FurtherTypes...>();
+    } else {
+        return has_t && has<U>();
+    }
+}
+
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+bool Entity<Types ...>::has_any() const {
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    bool has_t = has<T>();
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        return has_t || has_any<U, FurtherTypes...>();
+    } else {
+        return has_t || has<U>();
+    }
 }
 
 template <typename ... Types>
@@ -683,11 +829,107 @@ T & Entity<Types ...>::get() {
     throw std::runtime_error(k_comp_not_present_msg);
 }
 
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+Tuple<T &, U &, FurtherTypes & ...> Entity<Types ...>::get() {
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    auto & t = get<T>();
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        // should produce a single element tuple of a reference to T
+        return std::tuple_cat(Tuple<T &>(t), get<U, FurtherTypes...>());
+    } else {
+        return Tuple<T &, U &>(t, get<U>());
+    }
+}
+
 template <typename ... Types>
 template <typename T>
 const T & Entity<Types ...>::get() const {
     if (const auto * rv = ptr<T>()) return *rv;
     throw std::runtime_error(k_comp_not_present_msg);
+}
+
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+Tuple<const T &, const U &, const FurtherTypes & ...>
+    Entity<Types ...>::get() const
+{
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    using std::make_tuple, std::tuple_cat;
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        return tuple_cat(make_tuple(get<T>()), get<U, FurtherTypes...>());
+    } else {
+        return make_tuple(get<T>(), get<U>());
+    }
+}
+
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+Tuple<T *, U *, FurtherTypes * ...> Entity<Types ...>::ptr() {
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    using std::make_tuple, std::tuple_cat;
+    T * t = ptr<T>();
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        return tuple_cat(make_tuple(t), ptr<U, FurtherTypes...>());
+    } else {
+        return make_tuple(t, ptr<U>());
+    }
+}
+
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+Tuple<const T *, const U *, const FurtherTypes * ...>
+    Entity<Types ...>::ptr() const
+{
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    using std::make_tuple, std::tuple_cat;
+    const T * t = ptr<T>();
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        return tuple_cat(make_tuple(t), ptr<U, FurtherTypes...>());
+    } else {
+        return make_tuple(t, ptr<U>());
+    }
+}
+
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+Tuple<T &, U &, FurtherTypes & ...> Entity<Types ...>::add() {
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    if (!has_any<T, U, FurtherTypes...>()) {
+        return add_impl<T, U, FurtherTypes...>();
+    }
+    throw std::runtime_error("Entity::add: cannot add component(s) that are "
+                             "already present.");
+}
+
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+Tuple<T &, U &, FurtherTypes & ...> Entity<Types ...>::ensure() {
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    auto & t = ensure<T>();
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        return std::tuple_cat(Tuple<T &>(t), ensure<U, FurtherTypes...>());
+    } else {
+        return Tuple<T &, U &>(t, ensure<U>());
+    }
+}
+
+// new as of 2021-0711
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+void Entity<Types ...>::remove() {
+    AssertAllCompsAreUniqueAndPresent<T, U, FurtherTypes...>{};
+    if (has_all<T, U, FurtherTypes...>()) {
+        return remove_impl<T, U, FurtherTypes...>();
+    }
+    throw std::runtime_error("Entity::remove: cannot remove all components, "
+                             "unless all are present.");
 }
 
 template <typename ... Types>
@@ -726,6 +968,34 @@ template <typename ... Types>
                      "expired, or is a null reference.");
     }
     return fulltable;
+}
+
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+/* private */ Tuple<T &, U &, FurtherTypes & ...>
+    Entity<Types ...>::add_impl() noexcept
+{
+    // throwing here is a library error, and I'm staking my honor on it
+    // with a "noexcept" as a thrown exception will result in an altered
+    // state of the entity (where it's not desired in that exceptional
+    // case)
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        return tuple_cat(Tuple<T &>(add<T>()), add_impl<U, FurtherTypes...>());
+    } else {
+        return Tuple<T &, U &>(add<T>(), add<U>());
+    }
+}
+
+template <typename ... Types>
+template <typename T, typename U, typename ... FurtherTypes>
+/* private */ void Entity<Types ...>::remove_impl() noexcept {
+    // remove impl:
+    remove<T>();
+    if constexpr (sizeof...(FurtherTypes) > 0) {
+        remove_impl<U, FurtherTypes...>();
+    } else {
+        remove<U>();
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -782,7 +1052,12 @@ EntityManager<Types...>::~EntityManager() {
 template <typename ... Types>
 typename EntityManager<Types...>::EntityType
     EntityManager<Types...>::create_new_entity()
-{ return EntityType::create_new_entity(*this); }
+{ return make_entity(); }
+
+template <typename ... Types>
+typename EntityManager<Types...>::EntityType
+    EntityManager<Types...>::make_entity()
+{ return EntityType::make_entity(*this); }
 
 template <typename ... Types>
 void EntityManager<Types...>::register_system(SystemType * sysptr) {
@@ -849,7 +1124,7 @@ void EntityManager<Types...>::process_deletion_requests(OnEntityDelete & on_dele
 }
 
 template <typename ... Types>
-detail::ReferenceCounter * EntityManager<Types...>::provide_new_identity() {
+detail::ReferenceCounter * EntityManager<Types...>::create_identity() {
     static_assert(std::is_base_of<detail::ReferenceCounter, detail::ComponentTableHead<Types...>>::value, "");
 
     auto * identity = new detail::ComponentTableHead<Types...>;
@@ -889,7 +1164,7 @@ inline /* static */ ReferenceManager & ReferenceManager::null_instance() {
     class NullReferenceManager final : public ecs::detail::ReferenceManager {
         using ReferenceCounter = ecs::detail::ReferenceCounter;
 
-        ReferenceCounter * provide_new_identity() override {
+        ReferenceCounter * create_identity() override {
             auto * counter = new NullManaCounter;
             counter->count = 1;
             counter->reference_manager = this;
@@ -943,7 +1218,7 @@ inline /* static */ EntityRef EntityRef::create_new_entity
     (ReferenceManager & reference_manager)
 {
     EntityRef er;
-    er.m_identity = reference_manager.provide_new_identity();
+    er.m_identity = reference_manager.create_identity();
     return er;
 }
 

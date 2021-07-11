@@ -79,6 +79,7 @@ void test_f1();
 
 void test_f2();
 
+void test_f3();
 
 namespace {
 #ifdef MACRO_BUILD_WITH_SFML
@@ -192,8 +193,10 @@ class ColSys final :
 #   if 0
     public FilteredSystem<Displacement, Position, Radius>,
 #   endif
-    public System,
-    public ecs::UniqueToSystemComponent<CollisionRecord>
+    public System
+#   if 0
+    ,public ecs::UniqueToSystemComponent<CollisionRecord>
+#   endif
 {
     // displacement, position, radius
     // non-chunkable
@@ -239,6 +242,21 @@ class ColSys final :
         }
         return a_dis;
     }
+
+    bool has_ucomponent(const Entity & e) const
+        { return m_map.find(e) != m_map.end(); }
+
+    void add_ucomponent(const Entity & e) {
+        assert(!has_ucomponent(e));
+        m_map[e];
+    }
+
+    CollisionRecord & ucomponent_for(const Entity & e) {
+        assert(has_ucomponent(e));
+        return m_map[e];
+    }
+
+    std::unordered_map<Entity, CollisionRecord, ecs::EntityHasher> m_map;
 };
 
 class VelSys final :
@@ -298,8 +316,10 @@ struct Disc {
 Disc make_disc(std::default_random_engine &, double radius);
 
 class DrawSys final :
-    public System, public sf::Drawable,
+    public System, public sf::Drawable
+#   if 0
     public ecs::UniqueToSystemComponent<Disc>
+#   endif
 {
 public:
     DrawSys() {
@@ -317,13 +337,28 @@ private:
     }
 
     void draw(sf::RenderTarget & target, sf::RenderStates states) const override {
-        for (const auto & disc : range_for_ucomponents()) {
+        for (const auto & pair : m_map) {
+            const auto & disc = pair.second;
             auto tstates = states;
             tstates.transform.translate(sf::Vector2f(disc.translation));
             target.draw(disc.verticies.data(), disc.verticies.size(), sf::PrimitiveType::Triangles, tstates);
         }
     }
 
+    bool has_ucomponent(const Entity & e) const
+        { return m_map.find(e) != m_map.end(); }
+
+    Disc & add_ucomponent(const Entity & e) {
+        assert(!has_ucomponent(e));
+        return m_map[e];
+    }
+
+    Disc & ucomponent_for(const Entity & e) {
+        assert(has_ucomponent(e));
+        return m_map[e];
+    }
+
+    std::unordered_map<Entity, Disc, ecs::EntityHasher> m_map;
     std::default_random_engine m_rng;
 };
 
@@ -371,8 +406,11 @@ template <typename ... Types>
 class SystemsLayer {
 public:
     void set_elapsed_time(double) {}
+#   if 0
     void register_system(EntityManager &) {}
+#   endif
     void render_to(sf::RenderTarget &) const {}
+    void run_systems(EntityManager &) {}
 };
 
 template <typename Head, typename ... Types>
@@ -384,10 +422,16 @@ public:
         }
         SystemsLayer<Types...>::set_elapsed_time(et);
     }
+    void run_systems(EntityManager & em) {
+        em.run_system(sys);
+        SystemsLayer<Types...>::run_systems(em);
+    }
+#   if 0
     void register_system(EntityManager & em) {
         em.register_system(&sys);
         SystemsLayer<Types...>::register_system(em);
     }
+#   endif
     void render_to(sf::RenderTarget & target) const {
         if constexpr (std::is_base_of<sf::Drawable, Head>::value) {
             target.draw(sys);
@@ -422,6 +466,7 @@ int main() {
 
     test_f1();
     test_f2();
+    test_f3();
     test2();
     test3();
 #   ifdef MACRO_BUILD_WITH_SFML
@@ -456,13 +501,14 @@ int main() {
 
     EntityManager emana;
     SystemsLayer<DrawSys, AccSys, VelSys, ColSys, FrameCountSys> systems;
-
+#   if 0
     systems.register_system(emana);
+#   endif
     systems.set_elapsed_time(1. / 60.);
 
     // ecs::Entity<Velocity, Position, Displacement, Mass, Radius>;
     {
-    auto a = emana.create_new_entity();
+    auto a = emana.make_entity();
     add_typicals(a, 30, 1600, 320, 240);
 
     [[maybe_unused]] auto & vel = a.get<Velocity>();
@@ -470,7 +516,7 @@ int main() {
     a.add<FrameCounter>();
     a.add<Name>().s = "big";
 
-    auto b = emana.create_new_entity();
+    auto b = emana.make_entity();
     add_typicals(b, 20, 10, 320, 80);
     b.add<Name>().s = "small";
     b.get<Velocity>() = Vector(6., 3.);
@@ -478,7 +524,7 @@ int main() {
     EntityManager::FilteredEntity<Position, Velocity> efv(b);
     efv.get<Velocity>().x = 0.25;
 #   endif
-    auto c = emana.create_new_entity();
+    auto c = emana.make_entity();
     add_typicals(c, 5, 2000, 500, 0);
     c.get<Velocity>().y = 10;
 
@@ -508,8 +554,11 @@ int main() {
             }
         }
         }
+#       if 0
         emana.update_systems();
-
+#       endif
+        systems.run_systems(emana);
+        emana.process_deletion_requests();
         win.clear();
         systems.render_to(win);
         win.display();
@@ -536,8 +585,8 @@ void test_f1() {
     {
 
     EntMan mana;
-    Entity a = mana.create_new_entity();
-    Entity b = mana.create_new_entity();
+    Entity a = mana.make_entity();
+    Entity b = mana.make_entity();
 
     a.add<CompWithRef>().entref = b;
     a.add<SomethingElse>();
@@ -565,13 +614,13 @@ void test_f1() {
     }
     {
     EntMan mana;
-    Entity a = mana.create_new_entity();
+    Entity a = mana.make_entity();
     auto & se = a.add<SomethingElse>();
 
     auto s = std::make_unique<SomethingElse>();
 
     for (int i = 0; i != 1024; ++i) {
-        Entity t = mana.create_new_entity();
+        Entity t = mana.make_entity();
         t.add<SomethingElse>();
     }
     if (se.num == 0xDEADBEEF) {
@@ -597,7 +646,7 @@ void test_f2() {
                 if (e.has<SpawnerComp>()) {
                     // really try and force a reallocation
                     for (int i = 0; i != 100; ++i) {
-                        e.create_new_entity();
+                        e.make_entity();
                     }
                     e.request_deletion();
                 }
@@ -606,16 +655,65 @@ void test_f2() {
     };
     EntityMan eman;
     SimpleAddingSys ssys;
+#   if 0
     eman.register_system(&ssys);
-    auto e1 = eman.create_new_entity();
-    auto e2 = eman.create_new_entity();
+#   endif
+    auto e1 = eman.make_entity();
+    auto e2 = eman.make_entity();
 
     e1.add<CommonComp>();
     e2.add<CommonComp>();
     e2.add<SpawnerComp>();
-
+#   if 0
     eman.update_systems();
+#   endif
+    eman.run_system(ssys);
     eman.process_deletion_requests();
+}
+
+void test_f3() {
+    EntityManager eman;
+    Entity a = eman.make_entity(), b = eman.make_entity(), c = eman.make_entity();
+#   if 0 // nts: don't delete these, they're for demonstration purposes
+    a.add<Velocity, Velocity>(); // error!
+#   endif
+#   if 0
+    a.add<Displacement, Velocity, Position, Position>(); // error!
+#   endif
+    a.add<Velocity, Displacement, Position>();
+    b.add<Velocity, Position, Displacement>() = a.get<Velocity, Position, Displacement>();
+    a.remove<Position, Displacement, Velocity>();
+    c.add<Velocity>();
+    c.ensure<Displacement, Velocity, Position>() = b.get<Displacement, Velocity, Position>();
+
+    {
+    // IDE not co-operating
+    Mass * mptr;
+    Displacement * disptr;
+    std::tie(mptr, disptr) = b.ptr<Mass, Displacement>();
+    assert(!mptr && disptr);
+    }
+
+    const auto & ba = b;
+    ba.get<Velocity, Position, Displacement>();
+    ba.ptr<Velocity, Mass, Displacement>();
+    assert((b.has_all<Displacement, Position, Velocity>()));
+    assert(( !a.has_any<Displacement, Velocity, Position>() ));
+
+    auto d = eman.make_entity();
+    d.add<Velocity, Displacement, Position>();
+    try {
+        d.remove<Velocity, Displacement, Mass>();
+    } catch (...) {
+        ;
+    }
+    assert(d.has<Velocity>());
+    try {
+        d.add<Mass, Radius, Displacement>();
+    } catch (...) {
+        ;
+    }
+    assert(!d.has<Mass>());
 }
 
 namespace t2 {
@@ -686,10 +784,10 @@ void test2() {
 #   if 1
     {
     EntityManager emana;
-    t2::Entity a = emana.create_new_entity();
-    t2::Entity b = emana.create_new_entity();
-    t2::Entity c = emana.create_new_entity();
-    t2::Entity d = emana.create_new_entity();
+    t2::Entity a = emana.make_entity();
+    t2::Entity b = emana.make_entity();
+    t2::Entity c = emana.make_entity();
+    t2::Entity d = emana.make_entity();
     d.add<Hierarchy>().parent = b;
     a.add<Id>().id = 1;
     b.add<Id>().id = 2;
@@ -720,7 +818,7 @@ void test2() {
     testptr = &tester;
     {
     EntityManager emana;
-    tester = emana.create_new_entity();
+    tester = emana.make_entity();
     }
     }
     int k = 0;
@@ -734,7 +832,7 @@ void test2() {
     t2::Entity e;
     {
     EntityManager emana;
-    e = emana.create_new_entity();
+    e = emana.make_entity();
     sptr = &e.add<Safety>();
     }
     assert(e.has_expired());
@@ -744,12 +842,12 @@ void test2() {
     {
     EntityManager emana;
 
-    t2::Entity e = emana.create_new_entity();
+    t2::Entity e = emana.make_entity();
     e.add<Safety>();
 
-    t2::Entity a = emana.create_new_entity();
+    t2::Entity a = emana.make_entity();
     a.add<Hierarchy>();
-    t2::Entity b = emana.create_new_entity();
+    t2::Entity b = emana.make_entity();
     b.add<Id>();
 
     e.request_deletion();
@@ -760,7 +858,7 @@ void test2() {
     // entity ref instantiation by rvalue
     {
     EntityManager emana;
-    t2::Entity e = emana.create_new_entity();
+    t2::Entity e = emana.make_entity();
     auto e2 = e;
     EntityRef ref(std::move(e2));
     }
@@ -780,16 +878,28 @@ void test2() {
     };
     EntityManager emana;
     EntityCounter counter;
+#   if 0
     emana.register_system(&counter);
-    auto spawner = emana.create_new_entity();
-    emana.create_new_entity();
+#   endif
+    auto spawner = emana.make_entity();
+    emana.make_entity();
+#   if 0
     emana.update_systems(); // append new entities
     emana.update_systems(); // count them
+#   endif
+    emana.process_deletion_requests();
+    emana.run_system(counter); // append new entities
+    emana.run_system(counter); // count them
     assert(counter.get_count() == 2);
-    spawner.create_new_entity();
-    spawner.create_new_entity();
+    spawner.make_entity();
+    spawner.make_entity();
+#   if 0
     emana.update_systems();
     emana.update_systems();
+#   endif
+    emana.process_deletion_requests();
+    emana.run_system(counter);
+    emana.run_system(counter);
     assert(counter.get_count() == 4);
     }
     {
@@ -803,8 +913,8 @@ void test2() {
         {
         t2::EntityManager t2mana;
         t1Manager t1mana;
-        t2::Entity e2 = t2mana.create_new_entity();
-        t1Entity e1 = t1mana.create_new_entity();
+        t2::Entity e2 = t2mana.make_entity();
+        t1Entity e1 = t1mana.make_entity();
 
         EntityRef eref;
         bool caught_bad_ref = false;
@@ -820,8 +930,8 @@ void test2() {
         {
         t2::EntityManager t2mana;
         t1Manager t1mana;
-        t2::Entity e2 = t2mana.create_new_entity();
-        t1Entity e1 = t1mana.create_new_entity();
+        t2::Entity e2 = t2mana.make_entity();
+        t1Entity e1 = t1mana.make_entity();
 
         EntityRef eref;
         bool caught_bad_ref = false;
@@ -877,7 +987,7 @@ CompToParent::~CompToParent() {
 void test3() {
     using namespace t3;
     t3::EntityManager eman;
-    t3::Entity entity = eman.create_new_entity();
+    t3::Entity entity = eman.make_entity();
     int target = CompToParent::k_signal - 10;
     entity.add<OtherComp>().target_write = &target;
     entity.add<CompToParent>().ref_to_parent = entity;

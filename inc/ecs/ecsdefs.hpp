@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020 Aria Janke
+    Copyright (c) 2021 Aria Janke
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -51,13 +51,13 @@ struct ReferenceCounter;
 struct ReferenceManager {
     static ReferenceManager & null_instance();
 
-    virtual ~ReferenceManager();
+    virtual ~ReferenceManager() {}
     // fixed for vocab limiting... "create" means "unmanaged pointer"
     virtual ReferenceCounter * create_identity() = 0;
 };
 
 struct ReferenceCounter {
-    virtual ~ReferenceCounter();
+    virtual ~ReferenceCounter() {}
 
     int count = 0;
     bool requesting_deletion = false;
@@ -173,7 +173,7 @@ struct CountInlinedComponents<Head, Types...> : public CountInlinedComponents<Ty
 // ----------------------------------------------------------------------------
 
 struct UscDelNotifier {
-    virtual ~UscDelNotifier();
+    virtual ~UscDelNotifier() {}
     virtual void notify_deletion(std::size_t) = 0;
 };
 

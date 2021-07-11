@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <thread>
 #include <chrono>
+#include <unordered_map>
 
 //#define MACRO_BUILD_WITH_SFML
 #ifdef MACRO_BUILD_WITH_SFML

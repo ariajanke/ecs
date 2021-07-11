@@ -31,6 +31,8 @@ SOURCES += ecs_test.cpp
 
 HEADERS += \
     ../inc/ecs/ecs.hpp \
+    ../inc/ecs/Entity.hpp \
+    ../inc/ecs/EntityRef.hpp \
     ../inc/ecs/ecsdefs.hpp
 
 INCLUDEPATH += \

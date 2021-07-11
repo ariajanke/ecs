@@ -85,21 +85,6 @@ public:
 
     ~EntityRef();
 
-    /// Creates a new entity, returning a reference to it. Components maybe
-    /// added/deleted/read/writen to when converted to a complete entity type.
-    /// If no manager is provided, the new entity will not be able to have any
-    /// components added to it.
-    /// @return reference to new entity
-    /// @deprecated EntityRef should not be able to create new entities
-    [[deprecated]] static EntityRef create_new_entity(ReferenceManager &);
-
-    /// Creates a new entity, using the reference manager for this entity
-    /// reference. Components maybe added/deleted/read/writen to when
-    /// converted to a complete entity type.
-    /// @return reference to new entity
-    /// @deprecated EntityRef should not be able to create new entities
-    [[deprecated]] EntityRef create_new_entity();
-
     /// @brief Replaces the underlying reference to a particular set of
     ///        components to the given reference.
     EntityRef & operator = (const EntityRef &);
@@ -181,23 +166,6 @@ inline EntityRef::EntityRef(const EntityRef & rhs):
 inline EntityRef::EntityRef(EntityRef && rhs) { swap(rhs); }
 
 inline EntityRef::~EntityRef() { detail::decrement(m_identity); }
-
-inline /* static */ EntityRef EntityRef::create_new_entity
-    (ReferenceManager & reference_manager)
-{
-    EntityRef er;
-    er.m_identity = reference_manager.create_identity();
-    return er;
-}
-
-inline EntityRef EntityRef::create_new_entity() {
-    if (!m_identity) {
-        throw std::runtime_error("EntityRef::create_new_entity(): cannot "
-                                 "create a new entity reference from a null "
-                                 "reference.");
-    }
-    return EntityRef::create_new_entity(*m_identity->reference_manager);
-}
 
 inline EntityRef & EntityRef::operator = (const EntityRef & rhs) {
     EntityRef temp(rhs);

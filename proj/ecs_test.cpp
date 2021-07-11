@@ -806,11 +806,7 @@ void test2() {
     d.remove<Hierarchy>();
     d.add<Id>().id = 5;
     d.remove<Id>();
-    EntityRef era = EntityRef::create_new_entity(ecs::detail::ReferenceManager::null_instance());
-    auto erb = era;
-    {
-    auto erc = erb;
-    }
+
     {
     EntityRef * testptr = nullptr;
     (void)testptr;

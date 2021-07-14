@@ -143,7 +143,6 @@ private:
     std::vector<EntityType> m_unfiltered_entities;
     std::vector<EntityType> m_new_entities;
     std::vector<SystemType *> m_systems;
-    std::vector<detail::UscDelNotifier *> m_ucsystems;
 };
 
 // -------------------------- end public interface ------------------------- //
@@ -174,15 +173,11 @@ void EntityManager<Types...>::register_system(SystemType * sysptr) {
                                     "a system pointer parameter.");
     }
     m_systems.push_back(sysptr);
-    if (auto * ucs = dynamic_cast<detail::UscDelNotifier *>(sysptr)) {
-        m_ucsystems.push_back(ucs);
-    }
 }
 
 template <typename ... Types>
 void EntityManager<Types...>::clear_systems_list() {
     m_systems.clear();
-    m_ucsystems.clear();
 }
 
 template <typename ... Types>
@@ -219,10 +214,6 @@ void EntityManager<Types...>::process_deletion_requests(OnEntityDelete & on_dele
     for (auto & ent : m_unfiltered_entities) {
         if (!EntityRefAtt::is_requesting_deletion(ent)) continue;
         on_delete(ent);
-        for (auto * ucs : m_ucsystems) {
-            ucs->notify_deletion(ent);
-        }
-
         EntityAtt::expire_entity(ent);
     }
     auto del_beg = std::remove_if(m_unfiltered_entities.begin(), m_unfiltered_entities.end(),

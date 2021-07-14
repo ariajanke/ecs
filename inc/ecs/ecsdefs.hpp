@@ -156,7 +156,12 @@ struct CountInlinedComponents {
 
 template <typename Head, typename ... Types>
 struct CountInlinedComponents<Head, Types...> : public CountInlinedComponents<Types...> {
-    static constexpr const bool k_inline_head = WouldInlineComponent<Head>::k_value;
+    // note: empty structures are counted as "inlined"
+    //       though this should occur regardless since empty structures are
+    //       "one" byte in size
+    static constexpr const bool k_inline_head =
+        WouldInlineComponent<Head>::k_value || std::is_empty_v<Head>;
+
     static constexpr const int  k_count       =
         (k_inline_head ? 1 : 0) + CountInlinedComponents<Types...>::k_count;
 
@@ -172,18 +177,36 @@ struct CountInlinedComponents<Head, Types...> : public CountInlinedComponents<Ty
 
 // ----------------------------------------------------------------------------
 
-struct UscDelNotifier {
-    virtual ~UscDelNotifier() {}
-    virtual void notify_deletion(std::size_t) = 0;
+enum TableEntryType { k_inlined, k_pointer, k_empty };
+
+template <bool kt_v, TableEntryType kt_true_v, TableEntryType kt_false_v>
+struct ConditionalTet {
+    static constexpr const auto k_value = kt_true_v;
 };
 
-// ----------------------------------------------------------------------------
+template <TableEntryType kt_true_v, TableEntryType kt_false_v>
+struct ConditionalTet<false, kt_true_v, kt_false_v> {
+    static constexpr const auto k_value = kt_false_v;
+};
 
-template <bool k_is_inlined, typename Type>
+template <bool kt_v, TableEntryType kt_true_v, TableEntryType kt_false_v>
+constexpr const auto kt_conditional_tet = ConditionalTet<kt_v, kt_true_v, kt_false_v>::k_value;
+
+template <typename ComponentType>
+constexpr const auto kt_component_entry_type =
+    kt_conditional_tet<
+        std::is_empty_v<ComponentType>, k_empty,
+    kt_conditional_tet<
+        WouldInlineComponent<ComponentType>::k_value, k_inlined,
+    /* else */
+        k_pointer
+    >>;
+
+template <TableEntryType k_type, typename Type>
 class TableEntryImpl;
 
 template <typename Type>
-class TableEntryImpl<true, Type> {
+class TableEntryImpl<k_inlined, Type> {
 public:
     TableEntryImpl() {}
     TableEntryImpl(const TableEntryImpl &) = delete;
@@ -207,7 +230,7 @@ private:
 };
 
 template <typename Type>
-class TableEntryImpl<false, Type> {
+class TableEntryImpl<k_pointer, Type> {
 public:
     TableEntryImpl() {}
     TableEntryImpl(const TableEntryImpl &) = delete;
@@ -232,6 +255,35 @@ private:
     Type * m = nullptr;
 };
 
+template <typename Type>
+class TableEntryImpl<k_empty, Type> {
+public:
+    static_assert(std::is_empty_v<Type>,
+        "Only empty types maybe used for this table entry specialization.");
+
+    TableEntryImpl() {}
+    TableEntryImpl(const TableEntryImpl &) = delete;
+    TableEntryImpl(TableEntryImpl &&) = delete;
+    ~TableEntryImpl() {}
+
+    TableEntryImpl & operator = (const TableEntryImpl &) = delete;
+    TableEntryImpl & operator = (TableEntryImpl &&) = delete;
+
+    Type * add() { return &s_m; }
+
+    void remove() {}
+
+    Type * get() { return &s_m; }
+
+    const Type * get() const { return &s_m; }
+
+private:
+    static Type s_m;
+};
+
+template <typename Type>
+/* private */ Type TableEntryImpl<k_empty, Type>::s_m = Type{};
+
 // ----------------------------------------------------------------------------
 
 template <typename ... Types>
@@ -249,29 +301,29 @@ public:
 };
 
 template <typename Head, typename ... Types>
-class ComponentTable<Head, Types...> : public ComponentTable<Types...> {
+class ComponentTable<Head, Types...> :
+    public ComponentTable<Types...>,
+    public TableEntryImpl<kt_component_entry_type<Head>, Head>
+{
 public:
-    static constexpr const bool k_component_inlined = WouldInlineComponent<Head>::k_value;
     using ComponentTable<Types...>::get;
     using ComponentTable<Types...>::add;
     using ComponentTable<Types...>::remove;
+    using EntryImpl = TableEntryImpl<kt_component_entry_type<Head>, Head>;
 
     template <typename T>
     const typename std::enable_if<std::is_same<Head, T>::value, T>::
-    type * get(TypeTag<Head>) const { return m.get(); }
+    type * get(TypeTag<Head>) const { return EntryImpl::get(); }
 
     template <typename T>
     typename std::enable_if<std::is_same<Head, T>::value, T>::
-    type * get(TypeTag<Head>) { return m.get(); }
+    type * get(TypeTag<Head>) { return EntryImpl::get(); }
 
     template <typename T>
     typename std::enable_if<std::is_same<Head, T>::value, T>::
-    type * add(TypeTag<Head>) { return m.add(); }
+    type * add(TypeTag<Head>) { return EntryImpl::add(); }
 
-    void remove(TypeTag<Head>) { m.remove(); }
-
-private:
-    TableEntryImpl<k_component_inlined, Head> m;
+    void remove(TypeTag<Head>) { EntryImpl::remove(); }
 };
 
 template <typename ... Types>
@@ -282,10 +334,11 @@ public:
     using RtError      = std::runtime_error;
 
     template <typename Type>
-    struct InlineIndex {
-        static const constexpr int k_index =
-            CountInlined::template GetInlineIndex<Type>::k_index;
-    };
+    static constexpr const auto kt_inline_index =
+        CountInlined::template GetInlineIndex<Type>::k_index;
+
+    static constexpr const auto k_sizeof_components =
+        sizeof(ComponentTable<Types...>);
 
     ComponentTableHead() {}
     ComponentTableHead(const ComponentTableHead &) = delete;
@@ -334,7 +387,7 @@ template <typename ... Types>
 template <typename Type>
 typename std::enable_if<TypeList<Types...>::template HasType<Type>::k_value, Type>::
 type & ComponentTableHead<Types...>::add() {
-    static const constexpr int k_index = InlineIndex<Type>::k_index;
+    static const constexpr int k_index = kt_inline_index<Type>;
     if (get_ptr<Type>()) {
         throw RtError("ComponentTableHead::add(): component of this type is already present.");
     }
@@ -349,7 +402,7 @@ template <typename ... Types>
 template <typename Type>
 const typename std::enable_if<TypeList<Types...>::template HasType<Type>::k_value, Type>::
 type * ComponentTableHead<Types...>::get_ptr() const noexcept {
-    static const constexpr int k_index = InlineIndex<Type>::k_index;
+    static const constexpr int k_index = kt_inline_index<Type>;
     if constexpr (k_index == k_no_inline_index) {
         return m_table.template get<Type>(TypeTag<Type>());
     }
@@ -375,7 +428,7 @@ type ComponentTableHead<Types...>::remove() {
         throw RtError("ComponentTableHead::remove(): cannot remove a "
                       "component that is not present.");
     }
-    static const constexpr int k_index = InlineIndex<Type>::k_index;
+    static const constexpr int k_index = kt_inline_index<Type>;
     if (k_index != k_no_inline_index)
         { m_inlined_present.reset(k_index); }
     (void)m_table.remove(TypeTag<Type>());

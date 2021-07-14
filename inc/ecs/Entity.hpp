@@ -57,9 +57,16 @@ public:
     using SystemType        = System       <Types...>;
     using ComponentTypeList = TypeList     <Types...>;
 
-    /// Component table's size in bytes
+    /// Component table's size in bytes (includes "is present" bitfield)
+    /// This may become deprecated in the future
+    /// I've plans to handle very large number of components
     static constexpr const std::size_t k_component_table_size =
         sizeof(detail::ComponentTable<Types...>);
+
+    /// Size of the table of components in bytes (excluding the "is present"
+    /// bit field
+    static constexpr const std::size_t k_components_size =
+        detail::ComponentTableHead<Types...>::k_sizeof_components;
 
     /// The number of components inlined in the component table.
     ///
@@ -381,8 +388,7 @@ class EntityAtt {
 } // end of detail namespace
 
 template <typename ... Types>
-/* implicit */ Entity<Types ...>::Entity(const EntityRef & eref)
-{
+/* implicit */ Entity<Types ...>::Entity(const EntityRef & eref) {
     if (!eref) return;
     auto * fulltable = get_fulltable(eref);
     detail::increment(fulltable);
@@ -397,7 +403,6 @@ template <typename ... Types>
 Entity<Types ...>::Entity(const Entity & rhs):
     m_table(rhs.m_table)
     { detail::increment(m_table); }
-
 
 template <typename ... Types>
 Entity<Types...> & Entity<Types...>::operator = (const Entity & rhs) {

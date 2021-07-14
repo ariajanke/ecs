@@ -57,6 +57,8 @@ struct SomethingElse {
     ~SomethingElse() { num = 0xDEADBEEF; }
 };
 
+struct EmptyComponent {};
+
 static_assert(
     ecs::detail::WouldInlineComponent<SomethingElse>::k_value ==
     (sizeof(SomethingElse) <= ecs::detail::k_auto_inline_size), "");
@@ -74,6 +76,14 @@ static_assert(TestCount::GetInlineIndex<NotifyDel>::k_index == 1, "");
 static_assert(TestCount::GetInlineIndex<CompWithRef>::k_index == 0, "");
 #endif
 
+static_assert(
+    std::is_empty_v<ecs::detail::TableEntryImpl<ecs::detail::k_empty, EmptyComponent>>, "");
+#if 1
+static_assert(
+    ecs::Entity<SomethingElse, CompWithRef, EmptyComponent>::k_components_size ==
+    ecs::Entity<SomethingElse, CompWithRef>::k_components_size,
+    "Empty structures should not increase the size of the table (except the bit fields).");
+#endif
 } // end of t1 namespace
 
 void test_f1();
@@ -473,6 +483,13 @@ int main() {
 #   ifdef MACRO_BUILD_WITH_SFML
 
     using TestCount = ecs::detail::CountInlinedComponents<Velocity, Position, Displacement, Mass, Radius, Name, FrameCounter>;
+
+    std::cout << "Sample with empty component structure: "
+              << ecs::Entity<t1::SomethingElse, t1::CompWithRef, t1::EmptyComponent>::k_components_size
+              << " bytes, without empty structure "
+              << ecs::Entity<t1::SomethingElse, t1::CompWithRef>::k_components_size
+              << " bytes." << std::endl;
+    std::cout << "The entity with empty types " << ecs::Entity<t1::EmptyComponent>::k_components_size << std::endl;
 
     std::cout << std::boolalpha <<
         (ecs::detail::WouldInlineComponent<Velocity>::k_value) << " " <<

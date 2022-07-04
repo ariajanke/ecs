@@ -1,0 +1,10 @@
+langange: cpp
+compiler: gcc
+dist: bionic
+os: linux
+before_install:
+    - sudo apt-get update
+    - sudo apt-get -y install libsfml-dev
+    - sudo apt-get -y install libglm-dev
+script:
+    - make test

@@ -1,0 +1,16 @@
+.*
+!/.gitignore
+!.github
+*.user
+*.VC.db
+*.filters
+*.opendb
+*.pro.user*
+!.travis.yml
+*.autosave
+*libaabbtdp.a
+analysis.txt
+gmon.out
+libaabbp.a
+!.nojekyll
+docs/*

@@ -27,7 +27,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install clang++ -y
+          sudo apt install clang -y
       # Runs a single command using the runners shell
       - name: Prepare libraries
         run: |

@@ -224,6 +224,44 @@ bool test_avltreeentity() {
         return test(preokay && AllInst::count() == 0);
     });
     ecs::make_multiple_type_nodes<A, B, C, D, F>();
+    mark(suite).test([] {
+        // size 16 align 8
+        struct Pa final {
+            // depends on little-endianness of the machine
+            Pa() { reinterpret_cast<char &>(m.front()) = 'a'; }
+            std::array<uint64_t, 16 / 8> m;
+        };
+        // size 24 align 8
+        struct Pb final {
+            Pb() { reinterpret_cast<char &>(m.front()) = 'b'; }
+            std::array<uint64_t, 24 / 8> m;
+        };
+        // size 8 align 8
+        struct Pc final {
+            Pc() { reinterpret_cast<char &>(m.front()) = 'c'; }
+            std::array<uint64_t, 8 / 8> m;
+        };
+        // size 16 align 8
+        struct Pd final {
+            Pd() { reinterpret_cast<char &>(m.front()) = 'd'; }
+            std::array<uint64_t, 16 / 8> m;
+        };
+        // size 16 align 8
+        struct Pe final {
+            Pe() { reinterpret_cast<char &>(m.front()) = 'e'; }
+            std::array<uint64_t, 16 / 8> m;
+        };
+        // size 128 align 8
+        struct Pf final {
+            Pf() { reinterpret_cast<char &>(m.front()) = 'f'; }
+            std::array<uint64_t, 128 / 8> m;
+        };
+
+        {
+        ecs::make_multiple_type_nodes<Pa, Pb, Pc, Pd, Pe, Pf>();
+        }
+        return test(true);
+    });
     return suite.has_successes_only();
 }
 

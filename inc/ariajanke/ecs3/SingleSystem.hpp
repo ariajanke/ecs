@@ -26,7 +26,6 @@
 
 #pragma once
 
-#include <ariajanke/ecs3/TypeSet.hpp>
 #include <ariajanke/ecs3/FunctionTraits.hpp>
 #include <ariajanke/ecs3/Scene.hpp>
 #include <ariajanke/ecs3/detail/SingleSystem.hpp>

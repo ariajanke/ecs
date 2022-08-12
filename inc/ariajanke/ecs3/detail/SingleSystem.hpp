@@ -29,8 +29,9 @@
 #include <type_traits>
 #include <utility>
 
-#include <ariajanke/ecs3/TypeSet.hpp>
 #include <ariajanke/ecs3/FunctionTraits.hpp>
+
+#include <common/TypeSet.hpp>
 
 namespace ecs {
 
@@ -59,7 +60,7 @@ using StripOptional = typename StripOpt_<T>::Type;
 class Uofa_ {
     template <typename ... Types>
     struct UofaImpl_ {
-        using Set = TypeSet<>;
+        using Set = cul::TypeSet<>;
     };
 
     template <typename Func, typename ... Types>
@@ -93,18 +94,18 @@ public:
     };
 
     template <typename ... Types>
-    struct TypeSetAsTuple<TypeSet<Types...>> :
+    struct TypeSetAsTuple<cul::TypeSet<Types...>> :
         public TypeSetAsTuple<Types...> {};
 
     using FullUnionTuple = typename TypeSetAsTuple<
-        typename TypeSet<FullUnionTypes...>
+        typename cul::TypeSet<FullUnionTypes...>
         ::template Transform<std::add_pointer_t>
     >::Type;
 
     template <typename EntityType, typename ... OtherFuncs>
     class SysLayer : public SingleSystemBase<EntityType> {
     protected:
-        using ArgSet = TypeSet<>;
+        using ArgSet = cul::TypeSet<>;
 
         // bottom layer needs to know the union type
         SysLayer(OtherFuncs && ...) {}
@@ -137,7 +138,7 @@ public:
         };
 
         template <typename ... Types>
-        struct HasRequiredTypes<TypeSet<Types...>> :
+        struct HasRequiredTypes<cul::TypeSet<Types...>> :
             public HasRequiredTypes<Types...>
         {
             using HasRequiredTypes<Types...>::operator();
@@ -174,7 +175,7 @@ public:
         };
 
         template <typename ... RemainingTypes>
-        struct Adapter<TypeSet<RemainingTypes...>>:
+        struct Adapter<cul::TypeSet<RemainingTypes...>>:
             public Adapter<RemainingTypes...>
         {
             template <typename ... ArgTypes>
@@ -235,7 +236,7 @@ public:
 };
 
 template <typename ... AllFunctorArgumentTypes>
-class SingleSystemsGenerator<TypeSet<AllFunctorArgumentTypes...>> :
+class SingleSystemsGenerator<cul::TypeSet<AllFunctorArgumentTypes...>> :
     public SingleSystemsGenerator<AllFunctorArgumentTypes...> {};
 
 template <typename ... Types>

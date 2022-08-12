@@ -29,7 +29,8 @@
 #include <type_traits>
 
 #include <ariajanke/ecs3/defs.hpp>
-#include <ariajanke/ecs3/TypeSet.hpp>
+
+#include <common/TypeSet.hpp>
 
 namespace ecs {
 
@@ -72,7 +73,7 @@ class FuncPriv final {
     struct FuncTraitsImpl<ReturnType_(Types ...)> {
         using ArgumentTypes   = TypeList<Types...>;
         using ReturnType      = ReturnType_;
-        using ArgumentTypeSet = TypeSet<Types...>;
+        using ArgumentTypeSet = cul::TypeSet<Types...>;
 
         static constexpr const int k_argument_count = sizeof...(Types);
     };

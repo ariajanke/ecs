@@ -57,7 +57,7 @@ class TestTypeSetAndOptional {
     using Optional = ecs::Optional<T>;
 
     template <typename ... Types>
-    using TypeSet = ecs::TypeSet<Types...>;
+    using TypeSet = cul::TypeSet<Types...>;
 
     template <typename T>
     using StripOptional = ecs::StripOptional<T>;
@@ -120,6 +120,7 @@ int main() {
 
     get_info_on_func([]( int, char ){});
 
+    using cul::TypeSet;
     static_assert(TypeSet<A, B>::Union<B>::kt_occurance_count<B> == 1);
     MetaFunctions::set_component_addition_tracker([](const char * name, void *) {
         std::cout << "New component: \"" << name << "\" was just created." << std::endl;

@@ -481,63 +481,6 @@ public:
     using VoidFunc = void(*)(void *);
 
 private:
-    // Why am I doing this, do I think it's a "neat" puzzle?!
-    // What is wrong with me? :c
-
-    template <typename ... OTypes>
-    struct ReverseList final {
-        using List = TypeList<>;
-    };
-
-    template <typename Head, typename ... OTypes>
-    struct ReverseList<Head, OTypes...> final {
-        using InheritedList = typename ReverseList<OTypes...>::List;
-        using List = typename InheritedList::template CombineWith<Head>::Type;
-    };
-
-    template <typename TypeListType>
-    using ReverseListOf = typename TypeListType::template DefineWithListTypes<ReverseList>::Type::List;
-
-    template <std::size_t kt_idx, typename ... OTypes>
-    struct TypeAtIdx final {
-        using Type = void;
-    };
-
-    template <std::size_t kt_idx, typename Head, typename ... OTypes>
-    struct TypeAtIdx<kt_idx, Head, OTypes...> final {
-        using Type = std::conditional_t<kt_idx == 0, Head,
-            typename TypeAtIdx<kt_idx - 1, OTypes...>::Type>;
-    };
-
-    // left side of types before reaching idx and excluding idx
-    template <std::size_t kt_idx, std::size_t kt_mid, typename ... OTypes>
-    struct TypesLeftOf final {
-        using List = TypeList<>;
-    };
-
-    template <std::size_t kt_idx, std::size_t kt_mid, typename Head, typename ... OTypes>
-    struct TypesLeftOf<kt_idx, kt_mid, Head, OTypes...> final {
-        // hit zero, done adding types!
-        using BaseList = typename TypesLeftOf<kt_idx + 1, kt_mid, OTypes...>::List;
-        using ListWithHead = ReverseListOf<typename BaseList::template CombineWith<Head>::Type>;
-        using List = std::conditional_t<(kt_idx < kt_mid),
-            ListWithHead, BaseList>;
-    };
-
-    template <std::size_t kt_idx, std::size_t kt_mid, typename ... OTypes>
-    struct TypesRightOf final {
-        using List = TypeList<>;
-    };
-
-    template <std::size_t kt_idx, std::size_t kt_mid, typename Head, typename ... OTypes>
-    struct TypesRightOf<kt_idx, kt_mid, Head, OTypes...> final {
-        // hit zero, done adding types!
-        using BaseList = typename TypesRightOf<kt_idx + 1, kt_mid, OTypes...>::List;
-        using ListWithHead = ReverseListOf<typename BaseList::template CombineWith<Head>::Type>;
-        using List = std::conditional_t<(kt_idx > kt_mid),
-            ListWithHead, BaseList>;
-    };
-
     template <typename T>
     std::ptrdiff_t compare(void * ptr) const noexcept
         { return MultiNodeImpl<Types...>::template compare<T>(ptr); }
@@ -553,10 +496,10 @@ private:
     template <typename Head, typename ... OTypes>
     void destruct_impl_(TypeList<Head, OTypes...>, void * datum) {
         // assumption... early type -> higher address
-        static constexpr const std::size_t kt_mid_idx = (sizeof...(OTypes) + 1) / 2;
-        using MidType = typename TypeAtIdx<kt_mid_idx, Head, OTypes...>::Type;
-        using LeftList = typename TypesLeftOf<0, kt_mid_idx, Head, OTypes...>::List;
-        using RightList = typename TypesRightOf<0, kt_mid_idx, Head, OTypes...>::List;
+        using Fork = typename TypeList<Head, OTypes...>::Fork;
+        using MidType = typename Fork::MiddleType;
+        using LeftList = typename Fork::Left;
+        using RightList = typename Fork::Right;
         auto diff = compare<MidType>(datum);
         if (diff == 0) {
             destruct<MidType>(datum);

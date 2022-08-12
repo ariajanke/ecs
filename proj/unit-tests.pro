@@ -35,7 +35,6 @@ HEADERS += \
     ../inc/ariajanke/ecs3/ecs.hpp \
     ../inc/ariajanke/ecs3/entity-common.hpp \
     ../inc/ariajanke/ecs3/Scene.hpp \
-    ../inc/ariajanke/ecs3/TypeSet.hpp \
     ../inc/ariajanke/ecs3/FunctionTraits.hpp \
     ../inc/ariajanke/ecs3/SingleSystem.hpp \
     ../inc/ariajanke/ecs3/SharedPtr.hpp \

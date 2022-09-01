@@ -28,6 +28,8 @@
 
 #include <ariajanke/ecs3/defs.hpp>
 
+#include <string> // needed by clang
+
 /// @file SharedPtr.hpp
 ///
 /// Some commentary on having to write this: @n
@@ -68,13 +70,18 @@ class SwPtrPriv final {
     template <typename T>
     friend class SharedPtr;
 
-    struct RefCounter {
+    struct RefCounter { // must not be final
         RefCounter() {}
         // maybe I don't need this?
         virtual ~RefCounter() {}
 
         std::atomic_int owners = 0;
         std::atomic_int observers = 0;
+    };
+
+    struct RefCounterPtrHash final {
+        std::size_t operator () (const RefCounter * ptr) const noexcept
+            { return ptr ? std::hash<const RefCounter *>{}(ptr) : 0; }
     };
 };
 
@@ -122,7 +129,7 @@ public:
     SharedPtr & operator = (SharedPtr && rhs);
 
     Size owner_hash() const noexcept
-        { return std::hash<RefCounter *>{}(m_ref); }
+        { return RefCounterPtrHash{}(m_ref); }
 
     T * operator -> () const
         { return verify_object_not_null("operator ->"); }
@@ -156,6 +163,7 @@ public:
 
 private:
     using RefCounter = SwPtrPriv::RefCounter;
+    using RefCounterPtrHash = SwPtrPriv::RefCounterPtrHash;
 
     template <typename U>
     friend class WeakPtr;
@@ -204,7 +212,7 @@ public:
     WeakPtr & operator = (WeakPtr && rhs);
 
     Size owner_hash() const noexcept
-        { return std::hash<RefCounter *>{}(m_ref); }
+        { return RefCounterPtrHash{}(m_ref); }
 
     SharedPtr<T> lock() const;
 
@@ -227,6 +235,7 @@ public:
 
 private:
     using RefCounter = SwPtrPriv::RefCounter;
+    using RefCounterPtrHash = SwPtrPriv::RefCounterPtrHash;
 
     bool equal_to(const WeakPtr<T> & rhs) const noexcept
         { return m_ref == rhs.m_ref; }

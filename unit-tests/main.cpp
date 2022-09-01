@@ -515,5 +515,11 @@ bool test_sharedptr() {
         return test(a.has_expired());
     });
 
+    // default shared_ptr hash must be 0
+    mark(suite).test([] {
+        SharedPtr<int> ptr;
+        return test(ptr.owner_hash() == 0);
+    });
+
     return suite.has_successes_only();
 }

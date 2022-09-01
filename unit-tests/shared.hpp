@@ -539,6 +539,8 @@ bool test_interface() {
     mark(suite).test([] {
         auto ea = EntityType::make_sceneless_entity();
         EntityType eb;
+        std::cout << ea.hash() << std::endl;
+        std::cout << eb.hash() << std::endl;
 
         // hash code for "null" entity must be 0
         return test(eb.hash() == 0 && eb.hash() != ea.hash());

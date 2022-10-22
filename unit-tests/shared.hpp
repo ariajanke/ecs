@@ -28,7 +28,7 @@
 
 #include <ariajanke/ecs3/ecs.hpp>
 
-#include <common/TestSuite.hpp>
+#include <ariajanke/cul/TestSuite.hpp>
 
 #include <iostream>
 

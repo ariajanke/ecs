@@ -30,7 +30,7 @@
 
 #include <ariajanke/ecs3/defs.hpp>
 
-#include <common/TypeSet.hpp>
+#include <ariajanke/cul/TypeSet.hpp>
 
 namespace ecs {
 

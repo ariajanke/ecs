@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include <common/Util.hpp>
+#include <ariajanke/cul/Util.hpp>
 
 /** @file details/defs.hpp
  *  Detail files receive very little documentation if any, as they are not 

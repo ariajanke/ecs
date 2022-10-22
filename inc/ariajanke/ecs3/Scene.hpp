@@ -29,7 +29,7 @@
 #include <vector>
 #include <algorithm>
 
-#include <common/Util.hpp>
+#include <ariajanke/cul/Util.hpp>
 
 #include <ariajanke/ecs3/detail/EntityRef.hpp>
 

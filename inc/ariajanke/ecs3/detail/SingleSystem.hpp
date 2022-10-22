@@ -31,7 +31,7 @@
 
 #include <ariajanke/ecs3/FunctionTraits.hpp>
 
-#include <common/TypeSet.hpp>
+#include <ariajanke/cul/TypeSet.hpp>
 
 namespace ecs {
 

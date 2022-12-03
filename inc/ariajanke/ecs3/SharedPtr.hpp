@@ -28,7 +28,7 @@
 
 #include <ariajanke/ecs3/defs.hpp>
 
-#include <string> // needed by clang
+#include <string>
 
 /// @file SharedPtr.hpp
 ///
@@ -53,12 +53,6 @@
 
 namespace ecs {
 
-// Having to reimplement this is painful.
-// Here's what I did: Looked for a drop in replacement for shared_ptr and weak_ptr
-// Can't use boost: not without including hundreds of other headers. Can't use the one other github replacement, doesn't implement weak_ptr.
-//
-// So here we are... implementing it myself... ugh
-
 class SwPtrAttn;
 
 class SwPtrPriv final {
@@ -71,10 +65,6 @@ class SwPtrPriv final {
     friend class SharedPtr;
 
     struct RefCounter { // must not be final
-        RefCounter() {}
-        // maybe I don't need this?
-        virtual ~RefCounter() {}
-
         std::atomic_int owners = 0;
         std::atomic_int observers = 0;
     };
@@ -371,6 +361,7 @@ template <typename T>
 SharedPtr<T>::~SharedPtr() {
     if (!m_ref) return;
     if (m_ref->owners == 1) {
+        // when an object runs out of owners, it must be deleted
         m_ptr->~T();
         if (m_ref->observers == 0) {
             delete m_ref;
@@ -387,7 +378,15 @@ template <typename ... ArgTypes>
         StorageFor<T> storage;
     };
     auto counter_and_storage = new Impl{};
-    auto ptr = new (&counter_and_storage->storage) T{std::forward<ArgTypes>(args)...};
+    T * ptr = nullptr;
+    try {
+        ptr = new (&counter_and_storage->storage)
+            T{std::forward<ArgTypes>(args)...};
+    } catch (...) {
+        delete counter_and_storage;
+        throw;
+    }
+
     auto rv = SharedPtr{static_cast<RefCounter *>(counter_and_storage), ptr};
     Attn::inc_owners(counter_and_storage);
     return rv;

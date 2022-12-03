@@ -195,6 +195,7 @@ int main() {
     // sint3 = std::move(sint4); // error
 
     }
+
     // systems next...
     // for now two target types of systems:
     // - single full entity
@@ -215,7 +216,6 @@ int main() {
         test_sharedptr(),
         test_hashtableentity(),
         test_avltreeentity()
-
                 ) ? 0 : ~0;
 }
 
@@ -237,6 +237,7 @@ bool test_sharedptr() {
     TestSuite suite;
     suite.start_series("shared pointer utilities");
     // gonna go... one by one
+
     mark(suite).test([] {
         return test(!SharedPtr<int>{});
     });
@@ -519,6 +520,22 @@ bool test_sharedptr() {
     mark(suite).test([] {
         SharedPtr<int> ptr;
         return test(ptr.owner_hash() == 0);
+    });
+
+    // probably should run with valgrind, as it usually should be
+    mark(suite).test([] {
+        class ThrowsOnConstruct final {
+        public:
+            ThrowsOnConstruct() {
+                throw RtError{"hello ;)"};
+            }
+        };
+        try {
+            SharedPtr<ThrowsOnConstruct>::make();
+        } catch (...) {
+            return test(true);
+        }
+        return test(false);
     });
 
     return suite.has_successes_only();

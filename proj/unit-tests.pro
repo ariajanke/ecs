@@ -44,7 +44,8 @@ HEADERS += \
     ../inc/ariajanke/ecs3/detail/defs.hpp \
     ../inc/ariajanke/ecs3/detail/HashMap.hpp \
     ../inc/ariajanke/ecs3/detail/EntityRef.hpp \
-    ../inc/ariajanke/ecs3/detail/SingleSystem.hpp
+    ../inc/ariajanke/ecs3/detail/SingleSystem.hpp \
+    ../inc/ariajanke/ecs3/detail/SharedPtr.hpp
     
 INCLUDEPATH += \
     ../lib/cul/inc  \

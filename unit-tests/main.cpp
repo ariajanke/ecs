@@ -526,9 +526,8 @@ bool test_sharedptr() {
     mark(suite).test([] {
         class ThrowsOnConstruct final {
         public:
-            ThrowsOnConstruct() {
-                throw RtError{"hello ;)"};
-            }
+            ThrowsOnConstruct()
+                { throw RtError{"hello ;)"}; }
         };
         try {
             SharedPtr<ThrowsOnConstruct>::make();
@@ -536,6 +535,67 @@ bool test_sharedptr() {
             return test(true);
         }
         return test(false);
+    });
+
+    // vector_make
+    // it returns a vector of shared pointers
+    mark(suite).test([] {
+        auto ptrs = SharedPtr<int>::vector_make(3, 2);
+        return test(ptrs.size() == 3 && *ptrs.front() == 2);
+    });
+
+    // it returns a vector of equal object pointers
+    mark(suite).test([] {
+        auto ptrs = SharedPtr<int>::vector_make(3, 2);
+        return test(*ptrs.at(0) == *ptrs.at(1));
+    });
+
+    // it returns a vector of different shared pointers
+    mark(suite).test([] {
+        auto ptrs = SharedPtr<int>::vector_make(3, 2);
+        *ptrs.front() = 10;
+        return test(*ptrs.at(1) != 10);
+    });
+
+    // it cleans up all instances
+    mark(suite).test([] {
+        Reseter r;
+        auto old_count = [] {
+            auto ptrs = SharedPtr<Dog>::vector_make(3);
+            return Counted<Dog>::count();
+        } ();
+        return test(old_count == 3 && Counted<Dog>::count() == 0);
+    });
+
+    // it returns pointers that delete independantly, where weak ptrs remain
+    mark(suite).test([] {
+        Reseter r;
+        auto ptrs = SharedPtr<Dog>::vector_make(3);
+        WeakPtr<Dog> a{ptrs.at(1)};
+        // it should be three
+        auto old_count = Counted<Dog>::count();
+        ptrs.at(1) = SharedPtr<Dog>{};
+        Counted<Dog>::count(); // <- should be two
+        return test(   old_count == 3 && Counted<Dog>::count() == 2
+                    && a.has_expired());
+    });
+
+    // it leaves no dangling instances if one constructor throws
+    mark(suite).test([] {
+        class X final : public Counted<X> {
+        public:
+            X() {
+                if (Counted<X>::count() < 3) return;
+                throw RtError{"too many X!! :c"};
+            }
+        };
+        bool threw = false;
+        try {
+            auto ptrs = SharedPtr<X>::vector_make(3);
+        } catch (...) {
+            threw = true;
+        }
+        return test(Counted<X>::count() == 0 && threw);
     });
 
     return suite.has_successes_only();

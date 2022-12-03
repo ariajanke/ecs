@@ -26,9 +26,7 @@
 
 #pragma once
 
-#include <ariajanke/ecs3/defs.hpp>
-
-#include <string>
+#include <ariajanke/ecs3/detail/SharedPtr.hpp>
 
 /// @file SharedPtr.hpp
 ///
@@ -53,39 +51,25 @@
 
 namespace ecs {
 
-class SwPtrAttn;
-
-class SwPtrPriv final {
-    friend class SwPtrAttn;
-
-    template <typename T>
-    friend class WeakPtr;
-
-    template <typename T>
-    friend class SharedPtr;
-
-    struct RefCounter { // must not be final
-        std::atomic_int owners = 0;
-        std::atomic_int observers = 0;
-    };
-
-    struct RefCounterPtrHash final {
-        std::size_t operator () (const RefCounter * ptr) const noexcept
-            { return ptr ? std::hash<const RefCounter *>{}(ptr) : 0; }
-    };
-};
-
-// not sure how constness will work here...
+/// A shared pointer has shared owner ship of an object
+///
+/// Unlike the STL this smart pointer is meant to provide a larger interface
+/// for greater flexibility and additional feature not available.
 template <typename T>
 class SharedPtr final {
+#   ifndef DOXYGEN_SHOULD_SKIP_THIS
     struct Dummy final {};
-public:
     friend class SwPtrAttn;
     using Attn = SwPtrAttn;
+#   endif
+public:
+    /// owned object's type
     using Element = std::remove_const_t<T>;
-    static constexpr const bool k_is_const_type = !std::is_same_v<T, Element>;
-    // writtable type is more restrictive, it should not take const type
 
+    /// true if the object is constant
+    static constexpr const bool k_is_const_type = !std::is_same_v<T, Element>;
+
+#   ifndef DOXYGEN_SHOULD_SKIP_THIS
     using EnableConstPtr = std::conditional_t<k_is_const_type, SharedPtr<const Element>, Dummy>;
 
     template <typename U>
@@ -93,6 +77,7 @@ public:
 
     template <typename U>
     using EnableConstOtherPtr = std::conditional_t<k_is_const_type && !std::is_same_v<U, Element>, SharedPtr<const U>, Dummy>;
+#   endif
 
     SharedPtr() {}
 
@@ -114,6 +99,26 @@ public:
     template <typename ... ArgTypes>
     static SharedPtr make(ArgTypes && ... args);
 
+    /// Creates a vector of shared pointers
+    ///
+    /// @note
+    /// The advantage of using this function is simple: sometimes you want a
+    /// whole bunch of shared pointers all at once. This function allows you
+    /// to do this using a fixed O(1) number of allocations rather than O(n).
+    /// The costs are as follows:
+    ///
+    /// - an additional pointer per object
+    /// - an additional decrement per object deletion
+    /// - overall hit on SharedPtr, using a virtual method call when an object
+    ///   is deleted
+    ///
+    /// @param size number of shared pointers to make
+    /// @param constructor_args each object is constructed using these
+    ///                         arguments
+    template <typename ... ArgTypes>
+    static std::vector<SharedPtr> vector_make
+        (int size, ArgTypes && ... constructor_args);
+
     SharedPtr & operator = (const SharedPtr & rhs);
 
     SharedPtr & operator = (SharedPtr && rhs);
@@ -132,25 +137,34 @@ public:
 
     void swap(SharedPtr & rhs) noexcept;
 
+    /// performs a static_cast on the underlying pointer
     template <typename U, typename Func>
     SharedPtr<U> cast_to(Func && f) const;
 
+    /// dynamically casts the shared pointer to another type
+    /// @returns shared ptr to an object to a different type, nullptr if the
+    ///          dynamic cast fails
     template <typename U>
     SharedPtr<U> dynamically_cast_to() const
         { return cast_to<U>([] (T * tp) { return dynamic_cast<U *>(tp); }); }
 
     explicit operator bool () const noexcept { return m_ptr; }
 
+    /// @returns number of observing weak pointers
     int observers() const noexcept { return m_ref ? int(m_ref->observers) : 0; }
 
+    /// @returns number of owners of the object
     int owners() const noexcept { return m_ref ? int(m_ref->owners) : 0; }
 
+    /// true if this and rhs are the same pointer
     bool operator == (const SharedPtr<T> & rhs) const noexcept
         { return equal_to(rhs); }
 
+    /// true if this and rhs are different pointers
     bool operator != (const SharedPtr<T> & rhs) const noexcept
         { return !equal_to(rhs); }
 
+#   ifndef DOXYGEN_SHOULD_SKIP_THIS
 private:
     using RefCounter = SwPtrPriv::RefCounter;
     using RefCounterPtrHash = SwPtrPriv::RefCounterPtrHash;
@@ -167,19 +181,23 @@ private:
 
     T * m_ptr = nullptr;
     RefCounter * m_ref = nullptr;
+#   endif
 };
 
 template <typename T>
 class WeakPtr final {
+#   ifndef DOXYGEN_SHOULD_SKIP_THIS
     struct Dummy final {};
-public:
     friend class SwPtrAttn;
     using Attn = SwPtrAttn;
-
+#   endif
+public:
     using Element = std::remove_const_t<T>;
+
     static constexpr const bool k_is_const_type = !std::is_same_v<T, Element>;
-    // writtable type is more restrictive, it should not take const type
+
     using EnableConstShrPtr = std::conditional_t<k_is_const_type, SharedPtr<const Element>, Dummy>;
+
     using EnableConstWkPtr =  std::conditional_t<k_is_const_type, WeakPtr<const Element>, Dummy>;
 
     WeakPtr() {}
@@ -224,6 +242,7 @@ public:
         { return !equal_to(rhs); }
 
 private:
+#   ifndef DOXYGEN_SHOULD_SKIP_THIS
     using RefCounter = SwPtrPriv::RefCounter;
     using RefCounterPtrHash = SwPtrPriv::RefCounterPtrHash;
 
@@ -232,9 +251,12 @@ private:
 
     T * m_ptr = nullptr;
     RefCounter * m_ref = nullptr;
+#   endif
 };
 
 // -------------------------- Implementation Details --------------------------
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 class SwPtrAttn final {
     using RefCounter = SwPtrPriv::RefCounter;
@@ -244,6 +266,12 @@ class SwPtrAttn final {
 
     template <typename T>
     friend class SharedPtr;
+
+    template <typename T>
+    using ParentVectorHolder = SwPtrPriv::ParentVectorHolder<T>;
+
+    template <typename T>
+    using VectorObjectHolder = SwPtrPriv::VectorObjectHolder<T>;
 
     template <typename T>
     static RefCounter * get_counter(const SharedPtr<T> &);
@@ -364,7 +392,8 @@ SharedPtr<T>::~SharedPtr() {
         // when an object runs out of owners, it must be deleted
         m_ptr->~T();
         if (m_ref->observers == 0) {
-            delete m_ref;
+            // m_ref may go bad after delete_this();
+            m_ref->delete_this();
             return;
         }
     }
@@ -375,6 +404,9 @@ template <typename T>
 template <typename ... ArgTypes>
 /* static */ SharedPtr<T> SharedPtr<T>::make(ArgTypes && ... args) {
     struct Impl final : public RefCounter {
+        void delete_this() final
+            { return delete this; }
+
         StorageFor<T> storage;
     };
     auto counter_and_storage = new Impl{};
@@ -393,9 +425,39 @@ template <typename ... ArgTypes>
 }
 
 template <typename T>
+template <typename ... ArgTypes>
+/* static */ std::vector<SharedPtr<T>>
+    SharedPtr<T>::vector_make
+    (int size, ArgTypes && ... constructor_args)
+{
+    using ParentHolder = Attn::ParentVectorHolder<T>;
+    using ObjectHolder = Attn::VectorObjectHolder<T>;
+
+    auto parent_holder = new ParentHolder{};
+    try {
+        std::vector<SharedPtr<T>> rv;
+        rv.reserve(size);
+        parent_holder->counter_and_storages.resize
+            (size, ObjectHolder{parent_holder});
+        parent_holder->counter = size;
+        for (auto & counter_and_storage : parent_holder->counter_and_storages) {
+            // arguments must be copied, and not moved
+            rv.emplace_back(SharedPtr<T>{
+                static_cast<RefCounter *>(&counter_and_storage),
+                new (&counter_and_storage.storage) T{constructor_args...}});
+            Attn::inc_owners(&counter_and_storage);
+        }
+        return rv;
+    } catch (...) {
+        delete parent_holder;
+        throw;
+    }
+}
+
+template <typename T>
 SharedPtr<T> & SharedPtr<T>::operator = (const SharedPtr & rhs) {
     if (this != &rhs) {
-        SharedPtr t(rhs);
+        SharedPtr t{rhs};
         swap(t);
     }
     return *this;
@@ -429,7 +491,7 @@ template <typename T>
     (const char * caller) const
 {
     if (m_ptr) return m_ptr;
-    throw RtError("SharedPtr::" + std::string{caller} + ":cannot use on null.");
+    throw RtError{"SharedPtr::" + std::string{caller} + ":cannot use on null."};
 }
 
 // ----------------------------------------------------------------------------
@@ -475,7 +537,7 @@ template <typename T>
 WeakPtr<T>::~WeakPtr() {
     if (!m_ref) return;
     if (m_ref->observers == 1 && m_ref->owners == 0) {
-        delete m_ref;
+        m_ref->delete_this();
         return;
     }
     --m_ref->observers;
@@ -484,7 +546,7 @@ WeakPtr<T>::~WeakPtr() {
 template <typename T>
 WeakPtr<T> & WeakPtr<T>::operator = (const WeakPtr & rhs) {
     if (this != &rhs) {
-        WeakPtr t(rhs);
+        WeakPtr t{rhs};
         swap(t);
     }
     return *this;
@@ -500,7 +562,7 @@ WeakPtr<T> & WeakPtr<T>::operator = (WeakPtr && rhs) {
 template <typename T>
 SharedPtr<T> WeakPtr<T>::lock() const {
     if (has_expired()) {
-        throw RtError("WeakPtr::lock: cannot lock expired pointer.");
+        throw RtError{"WeakPtr::lock: cannot lock expired pointer."};
     }
     ++m_ref->owners;
     return SharedPtr<T>{m_ref, m_ptr};
@@ -512,5 +574,7 @@ void WeakPtr<T>::swap(WeakPtr & rhs) noexcept {
     std::swap(m_ptr, rhs.m_ptr);
     std::swap(m_ref, rhs.m_ref);
 }
+
+#endif
 
 } // end of ecs namespace

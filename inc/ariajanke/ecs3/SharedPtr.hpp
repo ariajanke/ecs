@@ -109,8 +109,8 @@ public:
     ///
     /// - an additional pointer per object
     /// - an additional decrement per object deletion
-    /// - overall hit on SharedPtr, using a virtual method call when an object
-    ///   is deleted
+    /// - overall hit on SharedPtr, using a virtual method call when a
+    ///   reference counter is deleted
     ///
     /// @param size number of shared pointers to make
     /// @param constructor_args each object is constructed using these

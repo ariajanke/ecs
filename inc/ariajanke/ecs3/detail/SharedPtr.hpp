@@ -95,8 +95,12 @@ class SwPtrPriv final {
         ~VectorObjectHolder() {}
 
         void delete_this() final {
-            if (--this->parent->counter) return;
-            return delete this->parent; // <- this will "delete this"
+            // shouldn't we destruct this too?
+            // (both are trivially destructable)
+            auto parent = this->parent;
+            this->~VectorObjectHolder();
+            if (--parent->counter) return;
+            return delete parent; // <- this will "delete this"
         }
 
         StorageFor<T> storage;

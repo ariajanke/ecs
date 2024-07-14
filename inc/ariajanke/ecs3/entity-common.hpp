@@ -325,7 +325,8 @@ private:
 
         template <typename ... CollectedTypes>
         void operator () (EntityBase<FullEntity> & base, TypeList<CollectedTypes...>) const {
-            (void)static_cast<FullEntity &>(base).template add_(TypeList<CollectedTypes...>{});
+            (void)static_cast<FullEntity &>(base).
+                template add_<CollectedTypes...>(TypeList<CollectedTypes...>{});
         }
     };
 
@@ -357,7 +358,8 @@ private:
     template <typename ... Types>
     void remove_() {
         if (ConstEntityBase<FullEntity>::has_all_(TypeList<Types...>{})) {
-            return static_cast<FullEntity *>(this)->template remove_(TypeList<Types...>{});
+            return static_cast<FullEntity *>(this)->
+                template remove_<Types...>(TypeList<Types...>{});
         }
         throw RtError("");
     }
@@ -423,7 +425,7 @@ template <typename FullEntity>
 template <typename T>
 T & EntityBase<FullEntity>::add() {
     check_new_types(TypeList<T>{});
-    return std::get<0>(as_fe().template add_(TypeList<T>{}));
+    return std::get<0>(as_fe().template add_<T>(TypeList<T>{}));
 }
 
 template <typename FullEntity>
@@ -437,7 +439,7 @@ template <typename FullEntity>
 template <typename T, typename U, typename ... FurtherTypes>
 Tuple<T &, U &, FurtherTypes & ...> EntityBase<FullEntity>::add() {
     check_new_types(TypeList<T, U, FurtherTypes...>{});
-    return as_fe().template add_(TypeList<T, U, FurtherTypes...>{});
+    return as_fe().template add_<T, U, FurtherTypes...>(TypeList<T, U, FurtherTypes...>{});
 }
 
 template <typename FullEntity>
@@ -455,7 +457,7 @@ template <typename T>
 T & EntityBase<FullEntity>::ensure() {
     auto rv = ptr<T>();
     if (rv) return *rv;
-    return std::get<0>( as_fe().template add_(TypeList<T>{}) );
+    return std::get<0>( as_fe().template add_<T>(TypeList<T>{}) );
 }
 
 // outside of file
